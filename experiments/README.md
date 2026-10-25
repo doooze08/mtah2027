@@ -27,3 +27,4 @@ outputs/20261025_ball_owner_hmm_window50/       ← 提交文件、评测报告�
 - 实验跑完后**不要修改** `config.yaml`；改参数就新建一个实验，保证每条结果都能追溯。
 - 结果数字写进 `NOTES.md`，这是团队对比结果的唯一记录（`outputs/` 不在 Git 里）。
 - 每人只修改自己创建的实验目录，避免冲突。
+- 模拟实验仍使用这里的配置和记录，注明固定测试集的 `dataset_id`、生成配置、种子、生成器版本及文件校验值；预测与报告放 `outputs/<experiment_id>/simulation/<dataset_id>/`。所有候选使用相同输入，模拟成绩与真实比赛成绩分开记录。详见 [simulation/README.md](../simulation/README.md)。
