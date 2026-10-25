@@ -62,3 +62,72 @@ __pycache__/
 venv/
 env/
 .DS_Store
+
+# =============================================================================================
+# Team additions. Everything above is the official file, kept verbatim so upstream merges stay
+# clean. Rules below only ADD protection.
+# =============================================================================================
+
+# -- experiment outputs ------------------------------------------------------------------------
+# Every run writes to outputs/<experiment_id>/. Submissions are full-match labels: never commit.
+outputs/*
+!outputs/README.md
+!outputs/.gitkeep
+
+# Configs and notes in experiments/ ARE committed; anything heavy a run drops there is not.
+experiments/**/*.csv
+experiments/**/logs/
+experiments/**/runs/
+experiments/**/checkpoints/
+
+# -- labels and data, wherever they end up ----------------------------------------------------
+# A label CSV is a submission, and a submission can leak the answer. Ignore CSVs everywhere,
+# then re-allow exactly the files the official repository ships on purpose.
+*.csv
+!evaluation/gt/*_possession_gt_public.csv
+!evaluation/results/baseline_*.csv
+
+# Match assets and derived arrays, in case they are copied outside data/.
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.joblib
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.mov
+*.avi
+*.mkv
+
+# -- models ------------------------------------------------------------------------------------
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+wandb/
+mlruns/
+lightning_logs/
+
+# -- temporary files ---------------------------------------------------------------------------
+.ipynb_checkpoints/
+*.log
+*.tmp
+*.swp
+*~
+tmp/
+scratch/
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.env
+.env.*
+Thumbs.db

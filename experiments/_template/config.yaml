@@ -1,0 +1,14 @@
+# Experiment config. Commit this file; never commit what it produces (that goes to outputs/).
+experiment_id: YYYYMMDD_algo_name_short_desc
+algorithm: algo_name            # folder name under algorithms/
+author: github-handle
+description: ""
+
+data:
+  source: tactical              # tactical | broadcast  (see games.asset_paths)
+
+params: {}                      # passed as-is to algorithms/<algorithm>/predict.py::predict()
+
+evaluation:
+  gt: public                    # public = the 5-minute slice shipped with the repo
+  bootstrap: 0                  # e.g. 1000 for confidence intervals
