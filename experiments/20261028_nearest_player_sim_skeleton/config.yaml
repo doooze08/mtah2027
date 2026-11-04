@@ -1,0 +1,14 @@
+# Experiment config. Commit this file; never commit what it produces (that goes to outputs/).
+experiment_id: 20261028_nearest_player_sim_skeleton
+algorithm: nearest_player            # folder name under algorithms/
+author: github-handle
+description: "Smoke test of the simulation pipeline on TI01 and HD01 (both team versions)."
+
+data:
+  source: simulation            # simulated clips, read through predict_clip()
+  dataset_id: clean_v1_skeleton_02 # outputs/simulation_sets/<dataset_id>/
+
+params: {}                      # passed as-is to predict_clip()
+
+evaluation:
+  gt: simulation                # truth.csv of the dataset; never the public match answer
