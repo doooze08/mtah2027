@@ -5,6 +5,16 @@
 
 当前状态：骨架已跑通，只实现了 TI01、HD01 两个子型（各含主客互换版本）；观测层为 V1 原样输出。
 
+> **已知限制：** `game_state.csv`（`play_live`、`restart_team`）是理想裁判信号，真实比赛中没有对应输入
+> （真实 ATD 只有球和球员的平面位置、速度、球队归属；Smart Tagging 是有误报的自动阶段标签）。
+> 在观测层改造前暂时保留，但：
+> - 新算法不得依赖它判断死球或重启方；
+> - `nearest_player` 的模拟成绩中，`D` 段直接来自该信号，偏乐观；
+> - 观测层改造时将其移出算法输入，只用于生成答案。
+>
+> 同理，`observations.csv` 目前给出球高 `z`、固定球员编号和完整的球位置，都比真实 ATD 多；
+> 观测层改造的目标是让算法输入在格式和缺陷上都与真实 tactical ATD 一致。
+
 ## 流程：三层分开
 
 ```text
@@ -79,5 +89,5 @@ outputs/<experiment_id>/simulation/<id>/
 
 ## 两条红线
 
-1. 算法只读 `observations.csv` 和 `game_state.csv`，不读答案、剧本、事件表或场景名。
+1. 算法只读 `observations.csv`，不读答案、剧本、事件表或场景名。`game_state.csv` 暂时可读，但见开头的已知限制。
 2. 不用比赛的公开答案或人工标注构造场景（见 [AGENTS.md](../AGENTS.md)）。
