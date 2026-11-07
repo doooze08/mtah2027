@@ -26,9 +26,18 @@
 
 # 2. 运行实验配置里的算法，并逐片段评分
 bash scripts/run_simulation.sh 20261028_nearest_player_sim_skeleton clean_v1_skeleton_02
+
+# 3. 将现有数据和预测导出为离线动画；不会重新生成场景或运行算法
+.venv/bin/python -m simulation.view --dataset clean_v1_skeleton_02 --experiment 20261028_nearest_player_sim_skeleton
 ```
 
 `generate` 默认不覆盖已有数据集；改了场景或生成逻辑就换一个 dataset id。
+
+导出的 `viewer.html` 位于对应实验的结果目录，在 Finder 中双击，用浏览器打开即可。
+可选择 4 个已有片段，播放／暂停、拖动时间轴、输入帧号或逐帧前后查看；按空格播放，左右方向键步进。
+页面显示球场俯视图、球高度、正确标签、算法预测及可点击的剧本事件。
+缺少预测时显示灰色“无预测”，NaN 位置不画点；数据格式或帧对齐错误直接抛异常。
+HTML 包含全部数据和绘图代码，无需服务器、网络或额外依赖。
 
 ## 文件放置
 
@@ -37,14 +46,15 @@ simulation/scenarios/           场景规格和场景脚本，进 Git
 outputs/simulation_sets/<id>/   生成的数据，不进 Git
     observations.csv            算法可读：逐帧位置
     game_state.csv              算法可读：裁判信号
-    truth.csv                   仅评分：逐帧答案
-    events.csv                  仅评分：剧本事件表
-    samples.csv                 仅评分：片段说明
+    truth.csv                   评分／人工查看：逐帧答案，不供算法读取
+    events.csv                  评分／人工查看：剧本事件表，不供算法读取
+    samples.csv                 评分／人工查看：片段说明，不供算法读取
     manifest.json               生成命令、代码版本、依赖版本
 outputs/<experiment_id>/simulation/<id>/
     predictions.csv             算法输出
     per_clip.csv                逐片段指标
     report.md                   逐片段报告
+    viewer.html                 离线动画，含正确标签与预测，仅供人工检查
 ```
 
 | 文件 | 列 | 说明 |
@@ -73,6 +83,7 @@ outputs/<experiment_id>/simulation/<id>/
 | `generate.py` | 生成数据集 + 自检 |
 | `run_algorithm.py` | 读实验配置，对每个片段调用算法的 `predict_clip()` |
 | `evaluate.py` | 逐片段调用官方 `possession_metrics.evaluate()`，加核心窗口和换权时点诊断 |
+| `view.py`、`viewer.html` | 将已有模拟 CSV 和预测导出为独立 HTML；后者是页面模板，打开生成的结果而非模板 |
 
 算法接入：在 `algorithms/<算法>/predict.py` 实现 `predict_clip(observations, game_state, config)`，
 约定见 [algorithms/_template/predict.py](../algorithms/_template/predict.py)。原有 `predict(config)` 不变。
