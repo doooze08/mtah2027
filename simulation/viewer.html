@@ -164,7 +164,7 @@ function selectClip(id){
   $("seek").max=clip.positions.length-1;$("frameInput").max=clip.positions.length-1;$("lastFrame").textContent="/ "+(clip.positions.length-1);
   const covered=clip.prediction.filter(p=>p!=null).length;
   const wrong=clip.prediction.filter((p,i)=>p!=null&&p!==clip.truth[i]).length;
-  $("clipSummary").textContent=clip.positions.length+" 帧 · "+(clip.positions.length/data.fps).toFixed(2)+" s；已有预测 "+covered+" 帧，其中 "+wrong+" 帧与答案不同。";
+  $("clipSummary").textContent=clip.positions.length+" 帧 · "+((clip.positions.length-1)/data.fps).toFixed(2)+" s；已有预测 "+covered+" 帧，其中 "+wrong+" 帧与答案不同。";
   $("events").replaceChildren();
   for(const e of clip.events){
     const button=document.createElement("button");button.className="event";button.type="button";
@@ -186,7 +186,7 @@ for(const id of ["height","timeline"])$(id).addEventListener("click",e=>{
   seek(id==="timeline"?Math.floor(ratio*clip.positions.length):ratio*(clip.positions.length-1));
 });
 document.addEventListener("keydown",e=>{
-  if(["INPUT","SELECT","BUTTON","TEXTAREA"].includes(document.activeElement.tagName))return;
+  if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement.tagName))return;
   if(e.code==="Space"){e.preventDefault();togglePlay();}
   else if(e.code==="ArrowLeft"||e.code==="ArrowRight"){e.preventDefault();seek(frame+(e.code==="ArrowRight"?1:-1));}
 });

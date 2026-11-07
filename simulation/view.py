@@ -62,7 +62,6 @@ def build_payload(dataset_id, experiment_id):
                          obs.loc[obs["object"] == obj, "team"].iloc[0]} for obj in objects],
             "truth": frame_labels["truth"].tolist(),
             "prediction": frame_labels["prediction"].where(frame_labels["prediction"].notna(), None).tolist(),
-            "live": frame_labels["play_live"].astype(int).tolist(),
             "events": events[events["clip"] == clip_id].to_dict("records"),
         })
     return {"dataset": dataset_id, "experiment": experiment_id, "fps": FPS,
