@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>模拟场景 · 逐帧查看器</title>
+<style>
+:root{color-scheme:light;--ink:#19312e;--muted:#657873;--line:#dae3dc;--home:#e77e57;--away:#558cdb;--dead:#657873;--missing:#b9c1c6;--paper:#f4f5ef}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;font-size:14px}button,input,select{font:inherit}button,select{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #d29a36;outline-offset:3px}button:disabled{opacity:.4;cursor:default}.masthead{background:#193b33;color:#fff;padding:24px max(24px,calc((100vw - 1240px)/2));display:flex;justify-content:space-between;align-items:center;gap:20px}.eyebrow{font-size:11px;letter-spacing:2px;color:#b6d3bd;margin-bottom:7px}h1{font-size:24px;font-weight:600;margin:0}.local{font-size:12px;color:#d3e5d6;border:1px solid #668175;border-radius:20px;padding:7px 12px;white-space:nowrap}main{max-width:1288px;padding:24px;margin:auto}.intro{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}h2{font-size:19px;margin:0 0 7px}.context{color:var(--muted);font-size:12px;overflow-wrap:anywhere;line-height:1.8}.picker{min-width:265px}.picker label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}select{border:1px solid var(--line);background:white;color:var(--ink);padding:10px 12px;border-radius:8px;width:100%}.layout{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:18px}.panel{background:white;border:1px solid var(--line);border-radius:13px;overflow:hidden}.panel-heading{padding:15px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid #eef1ec;font-size:13px}.legend{display:flex;align-items:center;gap:12px;font-size:11px;color:var(--muted)}.legend span{display:flex;align-items:center;gap:5px}.dot{width:8px;height:8px;display:inline-block;border-radius:50%}.home{background:var(--home)}.away{background:var(--away)}.ball{background:#e5bd51}.pitch-wrap{background:#214f3e}canvas{display:block;width:100%}#pitch{aspect-ratio:1.545}.transport{padding:16px 18px;border-bottom:1px solid #edf1ec}.transport-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.buttons{display:flex;gap:7px;align-items:center}button{background:white;border:1px solid var(--line);border-radius:7px;color:var(--ink);padding:8px 11px}.primary{background:#244f40;color:white;border-color:#244f40;min-width:78px}.small{font-size:12px;color:var(--muted)}#speed{width:90px;padding:8px}#seek{width:100%;accent-color:#315f49;margin:16px 0 5px}.time-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums}#frameInput{width:76px;padding:6px;border:1px solid var(--line);border-radius:5px;color:var(--ink)}.tabs{display:flex;gap:16px;padding:12px 18px;font-size:12px;color:var(--muted);flex-wrap:wrap}.tabs label{display:flex;align-items:center;gap:5px}input[type=checkbox]{accent-color:#315f49}.chart-head{display:flex;justify-content:space-between;padding:10px 18px 0;font-size:12px;color:var(--muted)}#height{height:110px}#timeline{height:104px;cursor:crosshair}.chart-foot{padding:0 18px 13px;color:var(--muted);font-size:11px}.side{display:flex;flex-direction:column;gap:14px}.status{padding:17px}.status-title{font-size:11px;color:var(--muted);margin-bottom:11px}.label-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}.label-cell{border-radius:8px;padding:12px 10px;background:#f4f6f2}.label-cell small{font-size:11px;color:var(--muted)}.badge{display:block;width:fit-content;margin-top:9px;padding:5px 9px;border-radius:5px;font-size:14px;font-weight:600;color:white}.status-note{margin-top:13px;font-size:12px;color:var(--muted);line-height:1.7}.events{padding:4px 10px 12px;max-height:300px;overflow:auto}.event{display:flex;text-align:left;align-items:center;gap:11px;width:100%;border:0;border-radius:7px;margin:4px 0;padding:11px 8px}.event:hover{background:#f2f5ee}.event.active{background:#e9f0e5}.event-frame{font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted);min-width:42px}.event-name{font-size:12px}.event-detail{display:block;margin-top:4px;color:var(--muted);font-size:11px}.hint{padding:15px 17px;color:var(--muted);font-size:12px;line-height:1.9}.section-kicker{font-size:11px;color:#43674f;font-weight:600;letter-spacing:1px;margin-bottom:7px}.footer{margin:18px 0 2px;color:var(--muted);font-size:11px;line-height:1.8}.key{border:1px solid #cfd8cf;border-radius:4px;padding:0 4px;background:white}#clipSummary{margin-top:6px}.readout{font-variant-numeric:tabular-nums;white-space:nowrap}@media(max-width:860px){.layout{grid-template-columns:1fr}.side{display:grid;grid-template-columns:1fr 1fr}.hint{grid-column:1/-1}.intro{flex-direction:column}.picker{width:100%}.masthead{padding:19px 20px}main{padding:16px}.legend{gap:8px}}@media(max-width:500px){.side{display:flex}.local{display:none}.panel-heading{padding:12px}.transport{padding:12px}h1{font-size:21px}}
+</style>
+</head>
+<body>
+<header class="masthead"><div><div class="eyebrow">MTAH 2027 / SIMULATION LAB</div><h1>把每一次控球，看清楚。</h1></div><div class="local">本地离线 · 25 帧 / 秒</div></header>
+<main>
+<div class="intro"><div><h2 id="clipTitle">模拟场景</h2><div class="context" id="datasetName"></div><div class="context" id="experimentName"></div></div><div class="picker"><label for="clipSelect">选择片段</label><select id="clipSelect"></select></div></div>
+<div class="layout">
+<section class="panel" aria-label="场景播放器">
+<div class="panel-heading"><span>球场俯视图 <span class="small">· 米制坐标</span></span><div class="legend"><span><i class="dot home"></i>主队 H</span><span><i class="dot away"></i>客队 A</span><span><i class="dot ball"></i>球</span></div></div>
+<div class="pitch-wrap"><canvas id="pitch" role="img" aria-label="球员与球的位置"></canvas></div>
+<div class="transport"><div class="transport-row"><div class="buttons"><button id="previous" aria-label="上一帧">← 一帧</button><button id="play" class="primary">播放</button><button id="next" aria-label="下一帧">一帧 →</button></div><select id="speed" aria-label="播放速度"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div><input id="seek" type="range" min="0" value="0" step="1" aria-label="时间轴"><div class="time-row"><span class="small">第 <input id="frameInput" type="number" min="0" value="0" step="1" aria-label="帧编号"> 帧 <span id="lastFrame"></span></span><span id="clock" class="readout"></span></div></div>
+<div class="tabs"><label><input id="showTrail" type="checkbox" checked>球的近 1 秒轨迹</label><label><input id="showIds" type="checkbox">球员编号</label><label><input id="showEvents" type="checkbox" checked>事件与核心窗口</label></div>
+<div class="chart-head"><span>球高度 z（m）</span><strong id="ballHeight" class="readout"></strong></div><canvas id="height" role="img" aria-label="球高度随时间变化"></canvas>
+<div class="chart-head"><span>控球标签对照</span><span><span style="color:#d37049">■</span> 不一致区间</span></div><canvas id="timeline" role="img" aria-label="正确标签与算法预测时间轴"></canvas><div class="chart-foot">点击高度曲线或标签色带，可跳到对应帧。灰色表示缺少预测。</div>
+</section>
+<aside class="side"><section class="panel status"><div class="status-title">当前帧的判断</div><div class="label-pair"><div class="label-cell"><small>正确标签</small><span id="truthBadge" class="badge"></span></div><div class="label-cell"><small>算法预测</small><span id="predictionBadge" class="badge"></span></div></div><div id="comparison" class="status-note" aria-live="polite"></div><div id="clipSummary" class="status-note"></div></section>
+<section class="panel"><div class="panel-heading"><span>剧本事件</span><span class="small">点击跳帧</span></div><div id="events" class="events"></div></section>
+<section class="panel hint"><div class="section-kicker">怎样看这段运动</div>先看球的位置，再看高度，最后对照两条标签。球从对手头顶经过，或被碰到，并不一定意味着控球权已经转移。<br><br><span class="key">空格</span> 播放 / 暂停<br><span class="key">←</span> <span class="key">→</span> 前后逐帧</section></aside>
+</div>
+<footer class="footer">模拟数据检查工具；当前场景提供理想裁判信号。动画与模拟成绩不代表真实比赛效果。</footer>
+</main>
+<script id="simulation-data" type="application/json">__SIMULATION_PAYLOAD__</script>
+<script>
+"use strict";
+const data = JSON.parse(document.getElementById("simulation-data").textContent);
+const $ = id => document.getElementById(id);
+const colors = {H:"#e77e57", A:"#558cdb", D:"#657873", X:"#918aa6", missing:"#b9c1c6"};
+const names = {H:"主队 H", A:"客队 A", D:"死球 D", X:"弃答 X"};
+const scenarios = {TI01:"界外球重启", HD01:"长传 · 争顶与控制"};
+const eventNames = {legal_restart:"合法重启", control_start:"取得控制", incidental_touch:"碰球，未取得控制", ball_out:"球出界", stoppage:"停止比赛"};
+let clip, frame = 0, playing = false, startTime = 0, startFrame = 0, speed = 1;
+const canvases = ["pitch", "height", "timeline"];
+$("datasetName").textContent = "测试集 · " + data.dataset;
+$("experimentName").textContent = "算法实验 · " + data.experiment;
+for (const c of data.clips) {
+  const option = document.createElement("option");
+  option.value = c.id;
+  option.textContent = (scenarios[c.subtype] || c.subtype) + " / " + (c.initiatingTeam === "H" ? "主队发起" : "客队发起") + " · " + c.id;
+  $("clipSelect").append(option);
+}
+
+function canvas(id) {
+  const el = $(id), rect = el.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const width = Math.max(1, rect.width), height = Math.max(1, rect.height);
+  if (el.width !== Math.round(width*dpr) || el.height !== Math.round(height*dpr)) {
+    el.width = Math.round(width*dpr); el.height = Math.round(height*dpr);
+  }
+  const ctx = el.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
+  return {ctx, width, height};
+}
+const finiteXY = p => p && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+
+function drawPitch() {
+  const {ctx:c, width:w, height:h} = canvas("pitch");
+  const [length, breadth] = data.pitch, pad = 24, scale = Math.min((w-2*pad)/length, (h-2*pad)/breadth);
+  const ox = (w-length*scale)/2, oy = (h-breadth*scale)/2;
+  const xy = p => [ox+p[0]*scale, oy+(breadth-p[1])*scale];
+  const line = (a,b) => {c.beginPath(); c.moveTo(...xy(a)); c.lineTo(...xy(b)); c.stroke();};
+  const rect = (x,y,l,b) => c.strokeRect(...xy([x,y+b]), l*scale, b*scale);
+  c.fillStyle = "#214f3e"; c.fillRect(0,0,w,h);
+  for (let i=0;i<10;i++) {c.fillStyle=i%2?"#285842":"#25543f";c.fillRect(ox+i*length*scale/10,oy,length*scale/10,breadth*scale);}
+  c.strokeStyle="#abc5af"; c.lineWidth=1.15;
+  rect(0,0,length,breadth); line([length/2,0],[length/2,breadth]);
+  c.beginPath(); c.arc(...xy([length/2,breadth/2]),9.15*scale,0,2*Math.PI); c.stroke();
+  for (const right of [false,true]) {
+    rect(right?length-16.5:0,(breadth-40.32)/2,16.5,40.32);
+    rect(right?length-5.5:0,(breadth-18.32)/2,5.5,18.32);
+    rect(right?length: -1.5,(breadth-7.32)/2,1.5,7.32);
+  }
+  c.fillStyle="#b3ccb4";
+  for(const p of [[length/2,breadth/2],[11,breadth/2],[length-11,breadth/2]]){c.beginPath();c.arc(...xy(p),1.6,0,2*Math.PI);c.fill();}
+  if ($("showTrail").checked) {
+    c.strokeStyle="#f3d47a";c.lineWidth=2;c.setLineDash([4,3]);c.beginPath();let pen=false;
+    for(let f=Math.max(0,frame-data.fps);f<=frame;f++) {const p=clip.positions[f][0];if(!finiteXY(p)){pen=false;continue;}const [x,y]=xy(p);if(pen)c.lineTo(x,y);else c.moveTo(x,y);pen=true;}
+    c.stroke();c.setLineDash([]);
+  }
+  clip.objects.forEach((obj,i) => {
+    if(i===0)return;const p=clip.positions[frame][i];if(!finiteXY(p))return;
+    const [x,y]=xy(p);c.beginPath();c.arc(x,y,Math.max(4,Math.min(7,scale*0.8)),0,2*Math.PI);
+    c.fillStyle=colors[obj.team];c.fill();c.strokeStyle="rgba(255,255,255,.9)";c.lineWidth=1.3;c.stroke();
+    if($("showIds").checked){c.font="10px sans-serif";c.textAlign="center";c.fillStyle="#eef7eb";c.fillText(obj.id,x,y-10);}
+  });
+  const ball=clip.positions[frame][0];
+  if(finiteXY(ball)){
+    const [x,y]=xy(ball);c.beginPath();c.arc(x,y,9,0,2*Math.PI);c.fillStyle="rgba(12,27,20,.4)";c.fill();
+    c.beginPath();c.arc(x,y,5,0,2*Math.PI);c.fillStyle="#ffe296";c.fill();c.strokeStyle="#fff9e8";c.lineWidth=1.6;c.stroke();
+    c.fillStyle="#fff0c9";c.font="11px sans-serif";c.textAlign="left";
+    if(Number.isFinite(ball[2]))c.fillText("z "+ball[2].toFixed(2)+" m",Math.min(x+12,w-85),Math.max(oy+13,y-12));
+  }
+  c.fillStyle="#bdd4c1";c.font="10px sans-serif";c.textAlign="left";c.fillText("(0, 0)",ox,Math.min(h-5,oy+breadth*scale+16));
+  c.textAlign="right";c.fillText(length+" × "+breadth+" m",w-ox,Math.min(h-5,oy+breadth*scale+16));
+}
+
+function chartGeometry(w) {return {left:64,right:w-20,width:Math.max(1,w-84)};}
+function chartX(f,g) {return g.left+(f/Math.max(1,clip.positions.length-1))*g.width;}
+function drawMarkers(c,g,top,bottom) {
+  if($("showEvents").checked){
+    c.fillStyle="rgba(170,191,143,.12)";
+    c.fillRect(chartX(clip.core[0],g),top,chartX(Math.min(clip.positions.length-1,clip.core[1]),g)-chartX(clip.core[0],g),bottom-top);
+    c.strokeStyle="#bcc8b6";c.lineWidth=1;c.setLineDash([2,3]);
+    for(const e of clip.events){const x=chartX(e.frame,g);c.beginPath();c.moveTo(x,top);c.lineTo(x,bottom);c.stroke();}
+    c.setLineDash([]);
+  }
+  const x=chartX(frame,g);c.strokeStyle="#193b33";c.lineWidth=1.5;c.beginPath();c.moveTo(x,top);c.lineTo(x,bottom);c.stroke();
+}
+function drawHeight() {
+  const {ctx:c,width:w,height:h}=canvas("height"),g=chartGeometry(w),top=15,bottom=h-25;
+  let maximum=1;for(const f of clip.positions)if(Number.isFinite(f[0][2]))maximum=Math.max(maximum,f[0][2]);
+  maximum=Math.ceil(maximum);c.font="10px sans-serif";c.fillStyle="#71817a";c.textAlign="right";
+  for(const fraction of [0,.5,1]){const y=bottom-fraction*(bottom-top);c.strokeStyle="#edf0ea";c.lineWidth=1;c.beginPath();c.moveTo(g.left,y);c.lineTo(g.right,y);c.stroke();c.fillText((maximum*fraction).toFixed(1),g.left-10,y+3);}
+  c.strokeStyle="#b48932";c.lineWidth=2;c.beginPath();let pen=false;
+  clip.positions.forEach((positions,f)=>{const z=positions[0][2];if(!Number.isFinite(z)){pen=false;return;}const x=chartX(f,g),y=bottom-z/maximum*(bottom-top);if(pen)c.lineTo(x,y);else c.moveTo(x,y);pen=true;});c.stroke();
+  drawMarkers(c,g,top,bottom);
+  const z=clip.positions[frame][0][2];if(Number.isFinite(z)){c.beginPath();c.arc(chartX(frame,g),bottom-z/maximum*(bottom-top),3.5,0,2*Math.PI);c.fillStyle="#b48932";c.fill();}
+  c.fillStyle="#71817a";c.textAlign="left";c.fillText("0 s",g.left,h-7);c.textAlign="right";c.fillText(((clip.positions.length-1)/data.fps).toFixed(2)+" s",g.right,h-7);
+}
+function drawTimeline() {
+  const {ctx:c,width:w}=canvas("timeline"),g=chartGeometry(w),n=clip.positions.length;
+  c.font="11px sans-serif";c.textAlign="right";c.fillStyle="#657873";c.fillText("正确",g.left-12,35);c.fillText("预测",g.left-12,65);
+  for(const [labels,y] of [[clip.truth,20],[clip.prediction,50]]){
+    let start=0;for(let i=1;i<=n;i++)if(i===n||labels[i]!==labels[start]){
+      c.fillStyle=colors[labels[start]]||colors.missing;c.fillRect(g.left+start/n*g.width,y,(i-start)/n*g.width+.3,21);start=i;
+    }
+  }
+  c.fillStyle="#ce754c";
+  for(let i=0;i<n;i++)if(clip.prediction[i]!=null&&clip.prediction[i]!==clip.truth[i])c.fillRect(g.left+i/n*g.width,79,Math.max(1,g.width/n),4);
+  // Timeline bins cover full frame intervals; the cursor sits at the bin centre.
+  const timelineG={left:g.left+g.width/(2*n),right:g.right-g.width/(2*n),width:g.width*(n-1)/n};
+  drawMarkers(c,timelineG,14,86);
+}
+function badge(id,label) {$(id).textContent=names[label]||"无预测";$(id).style.backgroundColor=colors[label]||colors.missing;}
+function render() {
+  const n=clip.positions.length;$("seek").value=frame;$("frameInput").value=frame;
+  $("clock").textContent=(frame/data.fps).toFixed(2)+" / "+((n-1)/data.fps).toFixed(2)+" s";
+  badge("truthBadge",clip.truth[frame]);badge("predictionBadge",clip.prediction[frame]);
+  $("comparison").textContent=clip.prediction[frame]==null?"此帧无预测":clip.truth[frame]===clip.prediction[frame]?"此帧判断一致":"此帧判断不一致";
+  $("comparison").style.color=clip.prediction[frame]!=null&&clip.truth[frame]!==clip.prediction[frame]?"#b65f3b":"#657873";
+  const z=clip.positions[frame][0][2];$("ballHeight").textContent=Number.isFinite(z)?z.toFixed(2)+" m":"—";
+  $("previous").disabled=frame===0;$("next").disabled=frame===n-1;
+  let active=-1;clip.events.forEach((e,i)=>{if(e.frame<=frame)active=i;});
+  [...$("events").children].forEach((el,i)=>el.classList.toggle("active",i===active));
+  drawPitch();drawHeight();drawTimeline();
+}
+function pause(){playing=false;$("play").textContent="播放";}
+function seek(value){pause();frame=Math.max(0,Math.min(clip.positions.length-1,Math.round(Number(value)||0)));render();}
+function togglePlay(){
+  if(playing){pause();return;}
+  if(frame===clip.positions.length-1)frame=0;
+  playing=true;startFrame=frame;startTime=performance.now();$("play").textContent="暂停";render();
+}
+function selectClip(id){
+  pause();clip=data.clips.find(c=>c.id===id);frame=0;
+  $("clipTitle").textContent=(scenarios[clip.subtype]||clip.subtype)+" · "+(clip.initiatingTeam==="H"?"主队发起":"客队发起");
+  $("seek").max=clip.positions.length-1;$("frameInput").max=clip.positions.length-1;$("lastFrame").textContent="/ "+(clip.positions.length-1);
+  const covered=clip.prediction.filter(p=>p!=null).length;
+  const wrong=clip.prediction.filter((p,i)=>p!=null&&p!==clip.truth[i]).length;
+  $("clipSummary").textContent=clip.positions.length+" 帧 · "+((clip.positions.length-1)/data.fps).toFixed(2)+" s；已有预测 "+covered+" 帧，其中 "+wrong+" 帧与答案不同。";
+  $("events").replaceChildren();
+  for(const e of clip.events){
+    const button=document.createElement("button");button.className="event";button.type="button";
+    const number=document.createElement("span");number.className="event-frame";number.textContent="f "+e.frame;
+    const name=document.createElement("span");name.className="event-name";name.textContent=eventNames[e.event]||e.event;
+    const detail=document.createElement("span");detail.className="event-detail";detail.textContent=e.t.toFixed(4)+" s"+(e.team?" · "+names[e.team]:"");
+    name.append(detail);button.append(number,name);button.addEventListener("click",()=>seek(e.frame));$("events").append(button);
+  }
+  render();
+}
+$("play").addEventListener("click",togglePlay);
+$("previous").addEventListener("click",()=>seek(frame-1));$("next").addEventListener("click",()=>seek(frame+1));
+$("seek").addEventListener("input",e=>seek(e.target.value));$("frameInput").addEventListener("change",e=>seek(e.target.value));
+$("clipSelect").addEventListener("change",e=>selectClip(e.target.value));
+$("speed").addEventListener("change",e=>{speed=Number(e.target.value);startFrame=frame;startTime=performance.now();});
+for(const id of ["showTrail","showIds","showEvents"])$(id).addEventListener("change",render);
+for(const id of ["height","timeline"])$(id).addEventListener("click",e=>{
+  const rect=e.currentTarget.getBoundingClientRect(),g=chartGeometry(rect.width),ratio=(e.clientX-rect.left-g.left)/g.width;
+  seek(id==="timeline"?Math.floor(ratio*clip.positions.length):ratio*(clip.positions.length-1));
+});
+document.addEventListener("keydown",e=>{
+  if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement.tagName))return;
+  if(e.code==="Space"){e.preventDefault();togglePlay();}
+  else if(e.code==="ArrowLeft"||e.code==="ArrowRight"){e.preventDefault();seek(frame+(e.code==="ArrowRight"?1:-1));}
+});
+function animate(now){
+  if(playing){const next=Math.min(clip.positions.length-1,startFrame+Math.floor((now-startTime)/1000*data.fps*speed));if(next!==frame){frame=next;render();}if(frame===clip.positions.length-1)pause();}
+  requestAnimationFrame(animate);
+}
+selectClip(data.clips[0].id);
+new ResizeObserver(()=>render()).observe($("pitch"));
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
