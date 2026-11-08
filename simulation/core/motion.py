@@ -43,6 +43,14 @@ class Move:
 
 
 @dataclass
+class StillPeriod:
+    """A fixed sway offset while the player's scripted anchor is stationary."""
+    t0: float
+    t1: float
+    sway: Point2
+
+
+@dataclass
 class PlayerTrack:
     """Where one player is at any time: scripted moves plus a small idle sway.
 
@@ -57,6 +65,7 @@ class PlayerTrack:
     sway_period: Point2
     sway_phase: Point2
     moves: List[Move] = field(default_factory=list)
+    still_periods: List[StillPeriod] = field(default_factory=list)
 
     def anchor(self, t):
         """Scripted position, without the sway."""
@@ -75,9 +84,45 @@ class PlayerTrack:
                                                + self.sway_phase[0])
         y += self.sway_amplitude[1] * math.sin(2 * math.pi * t / self.sway_period[1]
                                                + self.sway_phase[1])
+        if self.still_periods:
+            anchor = self.anchor(t)
+            for period in self.still_periods:
+                if period.t0 <= t <= period.t1:
+                    return (anchor[0] + period.sway[0], anchor[1] + period.sway[1])
+            # Blend only outside held intervals. Short gaps split the available blend time
+            # evenly, so nearby holds never modify one another's stationary interval.
+            for index, period in enumerate(self.still_periods):
+                before = 0.6
+                if index > 0:
+                    before = min(before, (period.t0 - self.still_periods[index - 1].t1) / 2)
+                after = 0.6
+                if index + 1 < len(self.still_periods):
+                    after = min(after, (self.still_periods[index + 1].t0 - period.t1) / 2)
+                weight = 0.0
+                if before > 0 and period.t0 - before < t < period.t0:
+                    weight = ease((t - period.t0 + before) / before)
+                elif after > 0 and period.t1 < t < period.t1 + after:
+                    weight = 1.0 - ease((t - period.t1) / after)
+                if weight:
+                    return lerp((x, y), (anchor[0] + period.sway[0],
+                                         anchor[1] + period.sway[1]), weight)
         return (x, y)
 
+    def add_still(self, t0, t1):
+        """Freeze this player locally; reject contradictory scripted movement."""
+        if t1 <= t0:
+            raise ValueError("still interval must have positive duration")
+        if self.still_periods and t0 < self.still_periods[-1].t1 - 1e-9:
+            raise ValueError("still intervals must be ordered and must not overlap")
+        if any(max(t0, m.t0) < min(t1, m.t1) for m in self.moves):
+            raise ValueError("still interval overlaps a scripted run")
+        position, anchor = self.position(t0), self.anchor(t0)
+        self.still_periods.append(StillPeriod(t0, t1, (position[0] - anchor[0],
+                                                      position[1] - anchor[1])))
+
     def add_move(self, t0, t1, target):
+        if any(max(t0, s.t0) < min(t1, s.t1) for s in self.still_periods):
+            raise ValueError("scripted run overlaps a still interval")
         if self.moves and t0 < self.moves[-1].t1 - 1e-9:
             raise ValueError("{} {}: new move at {:.2f}s overlaps the previous one".format(
                 self.team, self.role, t0))
@@ -133,6 +178,38 @@ class BallFlight:
         dx = self.p1[0] - self.p0[0]
         dy = self.p1[1] - self.p0[1]
         return math.hypot(dx, dy) / (self.t1 - self.t0)
+
+
+@dataclass
+class GroundRoll:
+    """Straight, uniformly decelerating roll that stops at p1 and stays there.
+
+    The stop time is independent of segment coverage t1: extending a stopped segment
+    must not change the earlier trajectory. Distance d and duration T imply v0=2d/T.
+    """
+    t0: float
+    t1: float
+    p0: Point2
+    p1: Point2
+    stop_time: float = field(init=False)
+
+    def __post_init__(self):
+        if self.t1 <= self.t0:
+            raise ValueError("ground roll must have positive duration")
+        if not all(math.isfinite(v) for p in (self.p0, self.p1) for v in p):
+            raise ValueError("ground roll endpoints must be finite")
+        self.stop_time = self.t1
+
+    def position(self, t) -> Point3:
+        u = min(max((t - self.t0) / (self.stop_time - self.t0), 0.0), 1.0)
+        x, y = lerp(self.p0, self.p1, 2 * u - u * u)
+        return (x, y, BALL_RADIUS)
+
+    def speed(self, t):
+        duration = self.stop_time - self.t0
+        elapsed = min(max(t - self.t0, 0.0), duration)
+        return 2 * math.hypot(self.p1[0] - self.p0[0], self.p1[1] - self.p0[1]) / duration * (
+            1 - elapsed / duration)
 
 
 def sample(function, times):

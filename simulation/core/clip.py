@@ -28,7 +28,7 @@ import pandas as pd
 from simulation.core import events as ev
 from simulation.core.constants import (AWAY, BALL_ID, BALL_RADIUS, FPS, HOME, PITCH_LENGTH,
                                        PITCH_WIDTH)
-from simulation.core.motion import BallFlight, BallWithPlayer, PlayerTrack
+from simulation.core.motion import BallFlight, BallWithPlayer, GroundRoll, PlayerTrack
 
 # Starting positions in the attacker frame (atk attacks +x, so its goal is at x = 0).
 # A 4-4-2 against a 4-4-2, roughly a settled phase of play around midfield.
@@ -124,9 +124,27 @@ class ClipBuilder:
         self._ball_segments = [BallWithPlayer(0.0, 0.0, player, offset, offset, settle=0.0)]
 
     def hold(self, player: PlayerTrack, seconds: float, height: float = BALL_RADIUS,
-             in_front: float = BALL_AT_FEET):
+             in_front: float = BALL_AT_FEET, still: bool = False):
         """The player keeps the ball close: at the feet, or in the hands (height ~1-2 m,
-        in_front=0). A change of height or offset is spread over the whole hold."""
+        in_front=0). A change of height or offset is spread over the whole hold.
+
+        still=True freezes both at their current pose for this interval only. The ball
+        must already match height/in_front; conflicting runs or offset changes raise.
+        """
+        if still:
+            # A still hold preserves the current pose; moving the ball to a different
+            # requested offset would contradict "still". Settle it before this call.
+            bx, by, bz = self.ball_position(self.now)
+            px, py = player.position(self.now)
+            target = self._forward(player.team, in_front) + (height,)
+            offset = (bx - px, by - py, bz)
+            if any(abs(a - b) > 1e-9 for a, b in zip(offset, target)):
+                raise ValueError("still hold requires the ball at the requested offset already")
+            if math.hypot(bx - px, by - py) > MAX_GRAB_DISTANCE:
+                raise ValueError("still holder is too far from the ball")
+            player.add_still(self.now, self.now + seconds)
+            self._with_player(player, seconds, offset, settle=0.0)
+            return
         target = self._forward(player.team, in_front) + (height,)
         self._with_player(player, seconds, target, settle=seconds)
 
@@ -163,6 +181,30 @@ class ClipBuilder:
         self.now = arrival
         return arrival
 
+    def roll_to(self, seconds: float, player: Optional[PlayerTrack] = None, point=None,
+                arrival_contact: bool = True) -> float:
+        """Roll to a player or point, decelerating uniformly to rest after seconds.
+
+        The ball must already be on the ground. No truth event is inferred. For an
+        unreceived pass out, use point= and arrival_contact=False, then wait().
+        """
+        if (player is None) == (point is None):
+            raise ValueError("roll_to needs exactly one of player= or point=")
+        arrival = self.now + seconds
+        start = self.ball_position(self.now)
+        if abs(start[2] - BALL_RADIUS) > 1e-9:
+            raise ValueError("roll_to requires a ball on the ground")
+        if player is not None:
+            point = player.position(arrival)
+        roll = GroundRoll(self.now, arrival, start[:2], tuple(point[:2]))
+        self._end_current_segment()
+        self._contacts.append(self.now)
+        if arrival_contact:
+            self._contacts.append(arrival)
+        self._ball_segments.append(roll)
+        self.now = arrival
+        return arrival
+
     # -- staging players -----------------------------------------------------------------------
 
     def start_at(self, player: PlayerTrack, point):
@@ -195,9 +237,15 @@ class ClipBuilder:
         self._events.append(ev.Event(kind, self.now if at is None else at, team))
 
     def wait(self, seconds: float):
-        """Let time pass without staging anything (the ball stays where the segment puts it)."""
+        """Continue a held ball, or wait after an unreceived ground roll has stopped."""
         self._end_current_segment()
         last = self._ball_segments[-1]
+        if isinstance(last, GroundRoll):
+            if seconds < 0:
+                raise ValueError("wait duration cannot be negative")
+            self.now += seconds
+            self._end_current_segment()
+            return
         if not isinstance(last, BallWithPlayer):
             raise ValueError("wait() needs the ball to be with a player")
         self._with_player(last.player, seconds, last.target_offset)

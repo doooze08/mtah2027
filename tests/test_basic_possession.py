@@ -34,9 +34,19 @@ class BasicPossessionTests(unittest.TestCase):
                             frozen.add(("dfn", "ls"))
                         for player in builder.all_players():
                             if (player.team, player.role) in frozen:
-                                self.assertEqual(player.sway_amplitude, (0.0, 0.0))
-                            else:
-                                self.assertTrue(all(a > 0 for a in player.sway_amplitude))
+                                self.assertTrue(player.still_periods)
+                                for period in player.still_periods:
+                                    times = np.linspace(period.t0, period.t1, 7, endpoint=False)
+                                    for t in times:
+                                        np.testing.assert_allclose(player.position(t),
+                                                                   player.position(period.t0),
+                                                                   atol=1e-9, rtol=0)
+                                        np.testing.assert_allclose(clip.ball_at(t),
+                                                                   clip.ball_at(period.t0),
+                                                                   atol=1e-9, rtol=0)
+                            self.assertTrue(all(a > 0 for a in player.sway_amplitude))
+                            if (player.team, player.role) not in frozen:
+                                self.assertEqual(player.still_periods, [])
                                 positions = np.array([player.position(t) for t in (0, 0.5, 1)])
                                 self.assertGreater(np.ptp(positions, axis=0).max(), 0.0)
                         self.assertEqual(checks.run_all(clip), [])
@@ -54,8 +64,8 @@ class BasicPossessionTests(unittest.TestCase):
                             holds = [s for s in builder._ball_segments
                                      if isinstance(s, BallWithPlayer)
                                      and s.t0 >= clip.core_window[0] / FPS - 1 / FPS
-                                     and s.start_offset == s.target_offset
-                                     and s.target_offset == (0.0, 0.0, BALL_RADIUS)
+                                     and np.allclose(s.start_offset, s.target_offset, atol=1e-9)
+                                     and np.allclose(s.target_offset, (0.0, 0.0, BALL_RADIUS), atol=1e-9)
                                      and s.t1 > s.t0]
                             pass_counts.add(len(holds))
                             self.assertIn(len(holds), (2, 3, 4))
@@ -66,6 +76,10 @@ class BasicPossessionTests(unittest.TestCase):
                                 times = np.linspace(hold.t0, hold.t1, 5, endpoint=False)
                                 positions = np.array([clip.ball_at(t) for t in times])
                                 np.testing.assert_allclose(positions, np.tile(positions[0], (5, 1)))
+
+                        if subtype in ("BP02", "BP03"):
+                            ball = clip.frames[clip.frames.object == "ball"]
+                            np.testing.assert_allclose(ball.z, BALL_RADIUS, atol=1e-9, rtol=0)
 
                         if subtype == "BP02":
                             opponent = "A" if team == "H" else "H"
@@ -85,6 +99,10 @@ class BasicPossessionTests(unittest.TestCase):
                             self.assertTrue(ball_fully_out(clip.ball_at(event.t + 1e-6)))
                             self.assertFalse(any(t > event.t for t in clip.contact_times))
                             self.assertFalse(any(e.kind == "incidental_touch" for e in clip.events))
+                            end = (clip.n_frames - 1) / FPS
+                            np.testing.assert_allclose(clip.ball_at(end), clip.ball_at(end - 1))
+                            x, y, _ = clip.ball_at(end)
+                            self.assertTrue(0.5 <= max(-y, y - PITCH_WIDTH) <= 2.0)
 
                 home, away = clips
                 self.assertEqual(home.n_frames, away.n_frames)
