@@ -19,7 +19,8 @@ class BounceTests(unittest.TestCase):
         b.bounce_to(1.2, point=(38, 42))
         flight, bounce = b._ball_segments[-2:]
         np.testing.assert_allclose(flight.position(bounce.t0), bounce.position(bounce.t0))
-        np.testing.assert_allclose(flight.velocity(bounce.t0)[:2], bounce.velocity(bounce.t0)[:2])
+        np.testing.assert_allclose(np.array(flight.velocity(bounce.t0)[:2]) * bounce.horizontal_retention,
+                                   bounce.velocity(bounce.t0)[:2])
         self.assertLess(flight.velocity(bounce.t0)[2], 0)
         self.assertGreater(bounce.velocity(bounce.t0)[2], 0)
         for t in np.linspace(0, bounce.t0, 21, endpoint=False):
@@ -40,7 +41,8 @@ class BounceTests(unittest.TestCase):
                 self.assertAlmostEqual(motion.position(impact)[2], BALL_RADIUS)
                 np.testing.assert_allclose(motion.position(impact - 1e-8),
                                            motion.position(impact + 1e-8), atol=2e-7, rtol=0)
-                np.testing.assert_allclose(motion.velocity(impact - 1e-8)[:2],
+                np.testing.assert_allclose(np.array(motion.velocity(impact - 1e-8)[:2])
+                                           * motion.horizontal_retention,
                                            motion.velocity(impact + 1e-8)[:2], atol=1e-7, rtol=0)
             np.testing.assert_allclose(motion.velocity(motion.stop_time), (0, 0, 0), atol=1e-9)
             stopped = motion.position(motion.stop_time)
@@ -54,6 +56,22 @@ class BounceTests(unittest.TestCase):
         self.assertIsNone(motion.roll)
         self.assertEqual(motion.position(motion.stop_time + 1), (20, 30, BALL_RADIUS))
         self.assertEqual(motion.velocity(motion.stop_time + 1), (0, 0, 0))
+
+    def test_horizontal_losses_include_first_and_final_ground_impacts(self):
+        for retention in (0.0, 0.75, 1.0):
+            motion = BouncingBall(0, (0, 0), (11.6, 0, -5.886), horizontal_retention=retention)
+            expected_hops = [11.6 * retention ** (i + 1) for i in range(3)]
+            np.testing.assert_allclose([v[0] for v in motion.hop_velocities], expected_hops)
+            expected_roll_speed = 11.6 * retention ** 4
+            self.assertAlmostEqual(motion.velocity(motion.roll_start)[0], expected_roll_speed)
+            bounce_distance = sum(v * (stop - start) for v, (start, stop, _) in
+                                  zip(expected_hops, motion.hops))
+            roll_distance = expected_roll_speed ** 2 / (2 * motion.deceleration)
+            self.assertAlmostEqual(motion.position(motion.stop_time)[0], bounce_distance + roll_distance)
+            if retention == 0:
+                self.assertIsNone(motion.roll)
+            elif retention == 1:
+                self.assertAlmostEqual(bounce_distance, 11.6 * (motion.roll_start - motion.t0))
 
     def test_builder_impacts_are_not_player_contacts_or_truth_events(self):
         clip = build_example()
@@ -159,7 +177,7 @@ class FormationFollowTests(unittest.TestCase):
         away = build_example(2, "A", True)
         self.assertEqual(home.n_frames, away.n_frames)
         self.assertEqual([{"H": "A", "A": "H", "D": "D"}[s] for s in home.truth], away.truth)
-        for t in (0, 2.5, 5, 8):
+        for t in (0, 2.5, 5, (home.n_frames - 1) / FPS):
             x, y, z = home.ball_at(t)
             np.testing.assert_allclose(away.ball_at(t), (PITCH_LENGTH - x, PITCH_WIDTH - y, z))
             for hp, ap in zip(home.players_at(t), away.players_at(t)):

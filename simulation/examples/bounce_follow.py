@@ -11,7 +11,7 @@ from simulation.core import ClipBuilder, checks, io
 from simulation.generate import assign_clip_ids, tables, verify_written, write_manifest
 
 
-def build_example(seed=0, team="H", follow_ball=False):
+def build_example(seed=0, team="H", follow_ball=False, horizontal_retention=0.75):
     """A generic unreceived high pass: three rebounds, rolling, then a stopped ball."""
     rng = np.random.default_rng(seed)
     b = ClipBuilder(rng, team, follow_ball=follow_ball)
@@ -22,7 +22,8 @@ def build_example(seed=0, team="H", follow_ball=False):
     b.event("legal_restart", team="atk")
     b.begin_core()
     b.run_to(runner, (48, 38), arrive_at=b.now + 3.0, seconds=2.0)
-    b.bounce_to(1.2, point=(38 + rng.uniform(-0.5, 0.5), 42.0))
+    b.bounce_to(1.2, point=(38 + rng.uniform(-0.5, 0.5), 42.0),
+                horizontal_retention=horizontal_retention)
     b.end_core()
     b.wait(2.0)
     b.expect("D", "atk")

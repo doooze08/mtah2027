@@ -227,7 +227,8 @@ class ClipBuilder:
         return arrival
 
     def bounce_to(self, seconds: float, point, restitution: float = 0.55,
-                  bounces: int = 3, deceleration: float = 2.0) -> float:
+                  bounces: int = 3, deceleration: float = 2.0,
+                  horizontal_retention: float = 0.75) -> float:
         """Kick to a ground landing, rebound, then roll to rest; return the stop time.
 
         seconds specifies only the initial flight. Ground impacts are self-check
@@ -237,7 +238,7 @@ class ClipBuilder:
         flight = self._ball_segments[-1]
         landing = self.ball_position(self.now)
         bounce = BouncingBall(self.now, landing[:2], flight.velocity(self.now),
-                              restitution, bounces, deceleration)
+                              restitution, bounces, deceleration, horizontal_retention)
         self._ball_segments.append(bounce)
         self._ground_impacts.extend(bounce.ground_impacts)
         self.now = bounce.stop_time

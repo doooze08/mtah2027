@@ -256,8 +256,8 @@ class GroundTrap:
 class BouncingBall:
     """Damped vertical hops after impact, followed by the existing ground-roll model.
 
-    Airborne horizontal velocity is retained. Each vertical rebound is restitution
-    times the previous impact speed. Ground collisions are not player contacts.
+    Each ground impact scales horizontal velocity by horizontal_retention, while
+    vertical rebound speed uses restitution. Ground collisions are not player contacts.
     """
     t0: float
     p0: Point2
@@ -265,29 +265,44 @@ class BouncingBall:
     restitution: float = 0.55
     bounces: int = 3
     deceleration: float = 2.0
+    horizontal_retention: float = 0.75
     hops: list = field(init=False, default_factory=list)
+    hop_positions: list = field(init=False, default_factory=list)
+    hop_velocities: list = field(init=False, default_factory=list)
     ground_impacts: list = field(init=False, default_factory=list)
     roll: object = field(init=False, default=None)
     roll_start: float = field(init=False)
     stop_time: float = field(init=False)
     t1: float = field(init=False)
+    roll_origin: Point2 = field(init=False)
 
     def __post_init__(self):
         if not 0 < self.restitution < 1 or self.bounces < 1:
             raise ValueError("bouncing needs 0 < restitution < 1 and at least one rebound")
+        if not 0 <= self.horizontal_retention <= 1:
+            raise ValueError("horizontal_retention must be between 0 and 1")
         time = self.t0
+        x, y = self.p0
+        vx, vy = self.incoming_velocity[:2]
         vz = abs(self.incoming_velocity[2]) * self.restitution
         self.ground_impacts.append(time)
         for _ in range(self.bounces):
+            vx *= self.horizontal_retention
+            vy *= self.horizontal_retention
             duration = 2 * vz / GRAVITY
             self.hops.append((time, time + duration, vz))
+            self.hop_positions.append((x, y))
+            self.hop_velocities.append((vx, vy))
+            x += vx * duration
+            y += vy * duration
             time += duration
             self.ground_impacts.append(time)
             vz *= self.restitution
         self.roll_start = time
-        vx, vy = self.incoming_velocity[:2]
-        x = self.p0[0] + vx * (time - self.t0)
-        y = self.p0[1] + vy * (time - self.t0)
+        # The final landing also dissipates horizontal speed before ground rolling.
+        vx *= self.horizontal_retention
+        vy *= self.horizontal_retention
+        self.roll_origin = (x, y)
         speed = math.hypot(vx, vy)
         self.stop_time = time + speed / self.deceleration
         if speed > 0:
@@ -300,22 +315,23 @@ class BouncingBall:
         if t >= self.roll_start:
             if self.roll is not None:
                 return self.roll.position(t)
-            return (*self.p0, BALL_RADIUS)
+            return (*self.roll_origin, BALL_RADIUS)
         time = max(t, self.t0)
-        vx, vy = self.incoming_velocity[:2]
-        for start, stop, vz in self.hops:
+        for index, (start, stop, vz) in enumerate(self.hops):
             if time < stop:
                 elapsed = time - start
-                return (self.p0[0] + vx * (time - self.t0),
-                        self.p0[1] + vy * (time - self.t0),
+                x, y = self.hop_positions[index]
+                vx, vy = self.hop_velocities[index]
+                return (x + vx * elapsed,
+                        y + vy * elapsed,
                         BALL_RADIUS + vz * elapsed - 0.5 * GRAVITY * elapsed ** 2)
 
     def velocity(self, t):
         if t >= self.roll_start:
             return (*self.roll.velocity(t), 0.0) if self.roll is not None else (0.0, 0.0, 0.0)
-        for start, stop, vz in self.hops:
+        for index, (start, stop, vz) in enumerate(self.hops):
             if t < stop:
-                return (*self.incoming_velocity[:2], vz - GRAVITY * (max(t, start) - start))
+                return (*self.hop_velocities[index], vz - GRAVITY * (max(t, start) - start))
 
 
 class FormationFollow:
