@@ -157,7 +157,8 @@ def markdown(report):
         "缺球时可见球员数 P10 / P50 / P90 / P99 / 最大：{}。数量:帧数 = {}。".format(
             percentiles(players), "；".join("{}:{}".format(k, v)
                                               for k, v in players["counts"].items() if v) or "无"), "",
-        "口径：任一球坐标 NaN 即缺球；片段间不连接。速度只用同侧相邻可见帧，不跨缺失段。",
+        "口径：任一球坐标 NaN 即缺球；真实输入仅含官方上下半场，半场外帧不计入分母；片段与半场间不连接。",
+        "速度只用同侧相邻可见帧，不跨缺失段或半场。",
         "每段缺失每侧至多计一个上下文样本，等权汇总；缺少端点或相邻观测计为不可算。边界距离场内为正、场外为负。",
         "截断段长度为已观测部分；跳变距离不是实际行程。可见球员要求 x/y 均非 NaN，未用槽位也计入 46 槽位基数。",
         "JSON 保留完整分档，分档比例以可计算样本为分母，空分布为 null、比例为 0；报告不含帧号或具体时刻。", ""]
@@ -178,9 +179,13 @@ def main(argv=None):
 
         clips = ((obs, meta) for _, obs, meta in load_clips(dataset_dir(args.dataset)))
     else:
+        from games import GAME, half_video_blocks
         from observations.atd import load_tactical
 
-        clips = [load_tactical(args.data_dir)]
+        observations, metadata = load_tactical(args.data_dir)
+        # Official endpoints are inclusive; exclude halftime and all outside-half frames.
+        clips = ((observations.iloc[first:last + 1], metadata)
+                 for _, first, last in half_video_blocks(GAME))
     report = summarize(clips)
     (out / "statistics.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     (out / "summary.md").write_text(markdown(report))
