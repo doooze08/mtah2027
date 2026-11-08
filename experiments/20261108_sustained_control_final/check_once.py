@@ -19,9 +19,10 @@ def main():
     directory = ROOT / 'outputs' / EXPERIMENT
     directory.mkdir(parents=True, exist_ok=True)
     marker = directory / 'final_check_once.json'
+    status = dict(started_utc=datetime.now(timezone.utc).isoformat(),
+                  dataset=DATASET, freeze=freeze)
     with marker.open('x') as handle:
-        json.dump(dict(started_utc=datetime.now(timezone.utc).isoformat(),
-                       dataset=DATASET, freeze=freeze), handle, indent=2)
+        json.dump(status, handle, indent=2)
     commands = [
         ['-m', 'simulation.generate', '--dataset-id', DATASET, '--subtypes',
          'TI01,HD01,BP01,BP02,BP03', '--stories', '5', '--seed', '901'],
@@ -31,8 +32,9 @@ def main():
     ]
     for command in commands:
         subprocess.run([sys.executable] + command, cwd=ROOT, check=True)
-    with marker.open('a') as handle:
-        handle.write('\nCompleted; results must not drive further tuning.\n')
+    status['completed_utc'] = datetime.now(timezone.utc).isoformat()
+    status['policy'] = 'Completed; results must not drive further tuning.'
+    marker.write_text(json.dumps(status, indent=2) + '\n')
 
 
 if __name__ == '__main__':
