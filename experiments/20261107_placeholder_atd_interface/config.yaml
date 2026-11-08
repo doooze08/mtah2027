@@ -1,0 +1,7 @@
+# Interface smoke test only; never selects possession algorithms or parameters.
+experiment_id: 20261107_placeholder_atd_interface
+algorithm: placeholder
+description: "Shared tactical ATD format and single-entry smoke test; all labels are X"
+data:
+  source: tactical
+params: {}

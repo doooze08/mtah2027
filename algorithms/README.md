@@ -18,7 +18,7 @@ algorithms/
 - **独立性**：算法之间不要互相 import；共用工具如确有需要，再统一抽到 `algorithms/common/`。
 - **官方代码只读**：可以 `from games import asset_paths`、`from starter.load_atd import ...` 复用官方加载器，
   但不要修改 `starter/`、`evaluation/`、`games.py`。
-- **不在算法目录里存数据或结果**：数据读 `data/`（或 `MTAH_DATA_DIR`），结果写 `outputs/<experiment_id>/`。
+- **数据读写交给运行器**：算法只接收 `predict(observations, metadata, config)` 的内存输入，返回每帧标签；格式见 [统一观测接口](../docs/OBSERVATIONS.md)。不读取文件或写结果。
 - **超参数不写死**：放在 `experiments/<experiment_id>/config.yaml`，由脚本传入。
 
 新建算法：

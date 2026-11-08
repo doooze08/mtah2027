@@ -1,0 +1,7 @@
+# PR review follow-up: all-slot team membership and real tactical integration.
+experiment_id: 20261107_placeholder_atd_review
+algorithm: placeholder
+description: "All-slot H/A metadata, simplified input guards and real tactical ATD loading"
+data:
+  source: tactical
+params: {}

@@ -12,23 +12,23 @@ from pathlib import Path
 import pandas as pd
 
 from simulation.core.constants import FPS, PITCH_LENGTH, PITCH_WIDTH
-from simulation.core.io import REPO_ROOT, dataset_dir
+from simulation.core.io import CLEAN_FILE, REPO_ROOT, dataset_dir
 
 
 def build_payload(dataset_id, experiment_id):
     """Join labels by clip/frame and pack positions in a fixed object order."""
     directory = Path(dataset_dir(dataset_id))
     output = Path(REPO_ROOT) / "outputs" / experiment_id / "simulation" / dataset_id
-    observations = pd.read_csv(directory / "observations.csv")
-    state = pd.read_csv(directory / "game_state.csv", keep_default_na=False)
+    # Full clean positions are debug-only, including height and script object ids.
+    observations = pd.read_csv(directory / CLEAN_FILE)
     truth = pd.read_csv(directory / "truth.csv").rename(columns={"label": "truth"})
     samples = pd.read_csv(directory / "samples.csv")
     events = pd.read_csv(directory / "events.csv", keep_default_na=False)
     keys = ["clip", "frame"]
     assert not observations.duplicated(keys + ["object"]).any()
     assert observations.groupby(keys).size().eq(23).all()
-    labels = state.merge(truth, on=keys, how="outer", validate="one_to_one", indicator=True)
-    assert labels.pop("_merge").eq("both").all()
+    labels = truth.copy()
+    assert not labels.duplicated(keys).any()
     assert labels["truth"].isin(["H", "A", "D"]).all()
     if (output / "predictions.csv").exists():
         predictions = pd.read_csv(output / "predictions.csv").rename(columns={"label": "prediction"})

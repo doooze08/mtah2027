@@ -1,26 +1,22 @@
-"""Reading and writing a simulation dataset: outputs/simulation_sets/<dataset_id>/.
+"""Dataset I/O with separate algorithm, grading and debugging paths.
 
-Two sides, kept apart on purpose:
-
-    algorithm side   load_clips()          observations.csv + game_state.csv only
-    grading side     load_answers()        truth.csv + samples.csv (+ events.csv)
-
-An algorithm runner imports only load_clips(). Nothing stops a determined reader from opening
-truth.csv (see docs/EXPERIMENTS.md); the split makes the honest path the easy one.
+load_clips opens only observations.csv and metadata.json. This is an interface boundary,
+not an operating-system sandbox (see docs/EXPERIMENTS.md).
 """
 
+import json
 import os
 
 import pandas as pd
 
-from simulation.core.constants import (EVENT_COLUMNS, GAME_STATE_COLUMNS, OBSERVATION_COLUMNS,
-                                       SAMPLE_COLUMNS, TRUTH_COLUMNS)
+from observations.schema import COLUMNS, validate
+from simulation.core.constants import EVENT_COLUMNS, SAMPLE_COLUMNS, TRUTH_COLUMNS
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SIMULATION_SETS = os.path.join(REPO_ROOT, "outputs", "simulation_sets")
-
 OBSERVATIONS_FILE = "observations.csv"
-GAME_STATE_FILE = "game_state.csv"
+METADATA_FILE = "metadata.json"
+CLEAN_FILE = os.path.join("debug", "clean_positions.csv")
 TRUTH_FILE = "truth.csv"
 EVENTS_FILE = "events.csv"
 SAMPLES_FILE = "samples.csv"
@@ -31,33 +27,32 @@ def dataset_dir(dataset_id):
     return os.path.join(SIMULATION_SETS, dataset_id)
 
 
-def write_dataset(directory, observations, game_state, truth, events, samples):
-    """Write the five tables. Each argument is a DataFrame already holding every clip."""
-    os.makedirs(directory, exist_ok=True)
-    tables = [(OBSERVATIONS_FILE, observations, OBSERVATION_COLUMNS),
-              (GAME_STATE_FILE, game_state, GAME_STATE_COLUMNS),
+def write_dataset(directory, observations, metadata, truth, events, samples, clean):
+    """Write a new dataset; old layouts must be regenerated under a new dataset id."""
+    os.makedirs(directory, exist_ok=False)
+    tables = [(OBSERVATIONS_FILE, observations, ["clip"] + COLUMNS),
               (TRUTH_FILE, truth, TRUTH_COLUMNS),
               (EVENTS_FILE, events, EVENT_COLUMNS),
-              (SAMPLES_FILE, samples, SAMPLE_COLUMNS)]
+              (SAMPLES_FILE, samples, SAMPLE_COLUMNS),
+              (CLEAN_FILE, clean, ["clip", "frame", "object", "team", "x", "y", "z"])]
     for name, table, columns in tables:
-        table[columns].to_csv(os.path.join(directory, name), index=False, float_format="%.4f")
+        path = os.path.join(directory, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        table[columns].to_csv(path, index=False, float_format="%.10g")
+    with open(os.path.join(directory, METADATA_FILE), "w") as handle:
+        json.dump(metadata, handle, indent=2, allow_nan=False)
 
 
 def load_clips(directory):
-    """Algorithm input: yields (clip_id, observations, game_state), one clip at a time.
-
-    observations: frame, object, team, x, y, z   (z only for the ball)
-    game_state:   frame, play_live, restart_team (restart_team is "" except on a restart frame)
-    """
-    observations = pd.read_csv(os.path.join(directory, OBSERVATIONS_FILE),
-                               dtype={"clip": str, "object": str, "team": str})
-    game_state = pd.read_csv(os.path.join(directory, GAME_STATE_FILE),
-                             dtype={"clip": str, "restart_team": str}, keep_default_na=False)
+    """Yield (clip_id, observations, metadata), reading only algorithm-visible files."""
+    metadata_path = os.path.join(directory, METADATA_FILE)
+    observations = pd.read_csv(os.path.join(directory, OBSERVATIONS_FILE), dtype={"clip": str})
+    with open(metadata_path) as handle:
+        metadata = json.load(handle)
     for clip_id, clip_obs in observations.groupby("clip", sort=True):
-        clip_state = game_state[game_state["clip"] == clip_id]
-        yield (clip_id,
-               clip_obs.drop(columns="clip").reset_index(drop=True),
-               clip_state.drop(columns="clip").sort_values("frame").reset_index(drop=True))
+        frames = clip_obs.drop(columns="clip").reset_index(drop=True)
+        validate(frames)
+        yield clip_id, frames, metadata[clip_id]
 
 
 def load_answers(directory):

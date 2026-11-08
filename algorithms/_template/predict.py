@@ -1,37 +1,24 @@
-"""Entry point of an algorithm. Copy this folder, rename it, then implement predict().
+"""Shared algorithm entry point for tactical ATD and simulated clips.
 
-Contract shared by every algorithm so scripts can run any of them the same way:
+    labels = predict(observations, metadata, config)
 
-    labels = predict(config)   # sequence of 'H' / 'A' / 'D' / 'X', one per tactical video frame
-
-Writing the CSV, validating and scoring are handled by scripts/, not here.
-
-Optional second entry, for the simulation test bench (simulation/run_algorithm.py):
-
-    labels = predict_clip(observations, game_state, config)   # one label per clip frame
-
-It sees one simulated clip at a time, in metres, and nothing else (no truth, no scenario name).
+The runner loads inputs and writes CSVs. Algorithms never load files or answers themselves.
 """
 
 
-def predict(config):
-    """Return one label per tactical video frame.
+def predict(observations, metadata, config):
+    """Return one H/A/D/X label per input row, in the same order.
 
     Args:
-        config: dict loaded from experiments/<experiment_id>/config.yaml (the `params` section).
+        observations: DataFrame with exactly 141 columns: frame, ball_x, ball_y,
+            then <slot>_x, <slot>_y, <slot>_s for slots 1..46 (numeric order).
+            One row per frame at 25 fps, frame numbered 0..n-1. Coordinates use
+            pitch boundaries 0..1; out-of-pitch values are preserved, missing values
+            are NaN. Player speed s is in m/s. No ball height or player identities.
+        metadata: dict with slot_teams (all 46 string slots -> H/A, including unobserved slots),
+            pitch_length and pitch_width in metres, fps. No events or referee signals.
+        config: params from experiments/<experiment_id>/config.yaml.
+
+    Do not assume slots are persistent player identities, or positions always exist.
     """
-    raise NotImplementedError("Template only -- copy algorithms/_template to a new folder first.")
-
-
-def predict_clip(observations, game_state, config):
-    """Return one label per frame of a simulated clip.
-
-    Args:
-        observations: DataFrame with columns frame, object, team, x, y, z. One row per object
-            per frame: object "ball" (team empty, z = height) or "p01".."p22" (team "H"/"A",
-            z empty). Positions in metres on a 105 x 68 pitch, frames from 0.
-        game_state: DataFrame with columns frame, play_live (1/0), restart_team ("H"/"A" on the
-            frame a restart takes effect, else "").
-        config: the `params` section of experiments/<experiment_id>/config.yaml.
-    """
-    raise NotImplementedError("Template only -- implement if the algorithm runs on simulations.")
+    raise NotImplementedError("Copy algorithms/_template and implement predict().")
