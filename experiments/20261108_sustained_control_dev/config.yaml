@@ -1,0 +1,10 @@
+experiment_id: 20261108_sustained_control_dev
+algorithm: sustained_control
+description: "Development only; seed 120..124; no real-match tuning"
+params:
+  ball_radius_m: 0.11
+  control_radius_m: 1.3
+  relative_speed_m_s: 3.0
+  confirm_s: 0.32
+  infer_restarts: true
+  restart_lookback_s: 5.0
