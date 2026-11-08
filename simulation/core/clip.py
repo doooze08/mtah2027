@@ -130,22 +130,23 @@ class ClipBuilder:
         target = self._forward(player.team, in_front) + (height,)
         self._with_player(player, seconds, target, settle=seconds)
 
-    def dribble(self, player: PlayerTrack, to, seconds: float):
+    def dribble(self, player: PlayerTrack, to, seconds: float, settle: float = 0.4):
         """The player runs to `to` with the ball just in front."""
         start = player.anchor(self.now)
         dx, dy = to[0] - start[0], to[1] - start[1]
         length = math.hypot(dx, dy) or 1.0
         lead = (BALL_DRIBBLE_LEAD * dx / length, BALL_DRIBBLE_LEAD * dy / length, BALL_RADIUS)
         player.add_move(self.now, self.now + seconds, to)
-        self._with_player(player, seconds, lead)
+        self._with_player(player, seconds, lead, settle=settle)
 
     def kick_to(self, seconds: float, player: Optional[PlayerTrack] = None, point=None,
-                height: float = BALL_RADIUS) -> float:
+                height: float = BALL_RADIUS, arrival_contact: bool = True) -> float:
         """Send the ball through the air to a player (or a point), arriving after `seconds`.
 
         Aimed at a player, the ball arrives exactly where that player will be at that moment,
         so schedule the player's run (run_to) before the kick. Returns the arrival time.
         Kicks, headers and throws all use this; the script says which by the events it adds.
+        Set arrival_contact=False for an unreceived flight, such as a pass out of play.
         """
         if (player is None) == (point is None):
             raise ValueError("kick_to needs exactly one of player= or point=")
@@ -157,7 +158,8 @@ class ClipBuilder:
         self._end_current_segment()
         self._ball_segments.append(BallFlight(self.now, arrival, start,
                                               (point[0], point[1], height)))
-        self._contacts.append(arrival)
+        if arrival_contact:
+            self._contacts.append(arrival)
         self.now = arrival
         return arrival
 
@@ -204,8 +206,9 @@ class ClipBuilder:
         """Mark the start of the event the scenario is really testing."""
         self._core[0] = self.now
 
-    def end_core(self):
-        self._core[1] = self.now
+    def end_core(self, at: Optional[float] = None):
+        """End the core window now, or at an exact event time within a staged flight."""
+        self._core[1] = self.now if at is None else at
 
     def expect(self, *labels):
         """Declare the label sequence the story must produce, e.g. expect("D", "atk", "dfn")."""
