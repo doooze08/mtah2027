@@ -3,7 +3,8 @@
 在已知答案的虚拟比赛片段上检查控球算法：先在信息完整时验证逻辑，再逐步加入观测缺陷。
 模拟成绩不代表真实比赛成绩。场景定义见 [CLEAN_CORNER_CASES_V1.md](scenarios/CLEAN_CORNER_CASES_V1.md)。
 
-当前状态：骨架已跑通，只实现了 TI01、HD01 两个子型（各含主客互换版本）；观测层为 V1 原样输出。
+当前实现 TI01、HD01 和基础控球 BP01–BP03（各含主客互换版本）；观测层为 V1 原样输出。
+基础控球的故事、逐帧验收要求及生成命令见 [BASIC_POSSESSION.md](scenarios/BASIC_POSSESSION.md)。
 
 > **已知限制：** `game_state.csv`（`play_live`、`restart_team`）是理想裁判信号，真实比赛中没有对应输入
 > （真实 ATD 只有球和球员的平面位置、速度、球队归属；Smart Tagging 是有误报的自动阶段标签）。
