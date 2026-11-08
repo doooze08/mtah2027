@@ -15,7 +15,7 @@ def predict(observations, metadata, config):
             One row per frame at 25 fps, frame numbered 0..n-1. Coordinates use
             pitch boundaries 0..1; out-of-pitch values are preserved, missing values
             are NaN. Player speed s is in m/s. No ball height or player identities.
-        metadata: dict with slot_teams (string slot -> H/A or None for unknown/unused),
+        metadata: dict with slot_teams (all 46 string slots -> H/A, including unobserved slots),
             pitch_length and pitch_width in metres, fps. No events or referee signals.
         config: params from experiments/<experiment_id>/config.yaml.
 

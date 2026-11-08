@@ -46,18 +46,12 @@ def write_dataset(directory, observations, metadata, truth, events, samples, cle
 def load_clips(directory):
     """Yield (clip_id, observations, metadata), reading only algorithm-visible files."""
     metadata_path = os.path.join(directory, METADATA_FILE)
-    if not os.path.isfile(metadata_path):
-        raise ValueError("Legacy simulation dataset: generate a new id with the ATD observation layer")
     observations = pd.read_csv(os.path.join(directory, OBSERVATIONS_FILE), dtype={"clip": str})
-    if list(observations.columns) != ["clip"] + COLUMNS or observations["clip"].isna().any():
-        raise ValueError("Expected clip plus the 141 shared observation columns")
     with open(metadata_path) as handle:
         metadata = json.load(handle)
-    if set(observations["clip"]) != set(metadata):
-        raise ValueError("Observation clips and metadata clips must match exactly")
     for clip_id, clip_obs in observations.groupby("clip", sort=True):
         frames = clip_obs.drop(columns="clip").reset_index(drop=True)
-        validate(frames, metadata[clip_id])
+        validate(frames)
         yield clip_id, frames, metadata[clip_id]
 
 

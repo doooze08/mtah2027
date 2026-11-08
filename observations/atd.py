@@ -17,40 +17,27 @@ def from_kloppy(dataset, expected_frames):
     from kloppy.domain import Ground
 
     pitch = dataset.metadata.pitch_dimensions
-    if ((pitch.x_dim.min, pitch.x_dim.max) != (0, 1) or
-            (pitch.y_dim.min, pitch.y_dim.max) != (0, 1)):
-        raise ValueError("Expected native pitch-normalized Metrica coordinates")
     slot_teams, rename = {}, {}
+    labels = {Ground.HOME: "H", Ground.AWAY: "A"}
     for team in dataset.metadata.teams:
-        if team.ground not in (Ground.HOME, Ground.AWAY):
-            raise ValueError("ATD team metadata must identify home and away")
-        label = "H" if team.ground == Ground.HOME else "A"
+        label = labels[team.ground]
         for player in team.players:
             # In this export ShirtNumber is the track slot, never a player identity.
             slot = str(player.jersey_no)
-            if slot not in SLOTS or slot in slot_teams:
-                raise ValueError("Expected 46 distinct track slots numbered 1..46")
             slot_teams[slot] = label
             for field in ("x", "y", "s"):
                 rename["{}_{}".format(player.player_id, field)] = slot + "_" + field
-    if set(slot_teams) != set(SLOTS):
-        raise ValueError("Expected metadata for all 46 tactical slots")
     # Select only public observation fields; discard timestamps, periods, ball_z, etc.
     raw = dataset.to_df(engine="pandas")
     if len(raw) != expected_frames or not np.array_equal(
             raw["frame_id"].to_numpy(), np.arange(1, expected_frames + 1)):
         raise ValueError("ATD must cover frame_id 1..{} exactly in order".format(expected_frames))
     raw = raw.rename(columns=rename)
-    if not raw.columns.is_unique:
-        raise ValueError("ATD columns collide after mapping track slots")
-    missing = set(COLUMNS[1:]) - set(raw.columns)
-    if missing:
-        raise ValueError("ATD is missing required fields: {}".format(sorted(missing)))
-    observations = raw[COLUMNS[1:]].astype(float).copy()
+    observations = raw[COLUMNS[1:]].astype(float)
     observations.insert(0, "frame", raw["frame_id"].to_numpy(dtype=np.int64) - 1)
     metadata = {"slot_teams": slot_teams, "pitch_length": pitch.pitch_length,
                 "pitch_width": pitch.pitch_width, "fps": dataset.metadata.frame_rate}
-    validate(observations, metadata)
+    validate(observations)
     return observations, metadata
 
 

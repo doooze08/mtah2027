@@ -69,7 +69,7 @@ def tables(built):
     observations, metadata, truth, events, samples, clean = [], {}, [], [], [], []
     for item in built:
         clip, clip_id = item["clip"], item["clip_id"]
-        obs, meta = observe(clip_id, clip, seed=item["seed"])
+        obs, meta = observe(clip, seed=item["seed"])
         observations.append(obs.assign(clip=clip_id))
         metadata[clip_id] = meta
         clean.append(clip.frames.assign(clip=clip_id))
@@ -117,8 +117,8 @@ def write_manifest(directory, args):
         "subtypes": args.subtypes,
         "stories_per_subtype": args.stories,
         "base_seed": args.seed,
-        "observation_layer": "atd_format_v1_no_defects",
-        "slot_mapping": "sha256(clip_id) + story seed; 22 distinct slots from 1..46",
+        "observation_layer": "atd_format_v2_all_slot_teams_no_defects",
+        "slot_mapping": "story seed; 24 H / 22 A slots; 11 active players per team",
         "git_commit": git("rev-parse", "HEAD"),
         "git_dirty": bool(git("status", "--porcelain", "--", "simulation")),
         "python": platform.python_version(),

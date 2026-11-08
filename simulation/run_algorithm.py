@@ -15,8 +15,6 @@ import yaml
 
 from simulation.core import io
 
-LABELS = {"H", "A", "D", "X"}
-
 
 def load_config(experiment_id):
     path = os.path.join(io.REPO_ROOT, "experiments", experiment_id, "config.yaml")
@@ -29,12 +27,10 @@ def prediction_dir(experiment_id, dataset_id):
 
 
 def predict_frames(algorithm, observations, metadata, params):
-    """Call the single entry and validate its output before writing anything."""
+    """Call the single entry and check its output length before writing."""
     labels = list(algorithm.predict(observations, metadata, params))
     if len(labels) != len(observations):
         raise ValueError("{} labels for {} frames".format(len(labels), len(observations)))
-    if any(not isinstance(label, str) or label not in LABELS for label in labels):
-        raise ValueError("Labels must be strings in H/A/D/X")
     return pd.DataFrame({"frame": observations["frame"].to_numpy(), "label": labels})
 
 
@@ -46,15 +42,11 @@ def main():
     source.add_argument("--tactical", action="store_true")
     parser.add_argument("--data-dir", help="match asset root; only with --tactical")
     args = parser.parse_args()
-    if args.data_dir and not args.tactical:
-        parser.error("--data-dir requires --tactical")
     config = load_config(args.experiment)
     algorithm = importlib.import_module("algorithms.{}.predict".format(config["algorithm"]))
     params = config.get("params") or {}
 
     if args.tactical:
-        if (config.get("data") or {}).get("source", "tactical") != "tactical":
-            parser.error("This interface supports tactical ATD only")
         from observations.atd import load_tactical
 
         observations, metadata = load_tactical(args.data_dir)

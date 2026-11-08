@@ -35,7 +35,7 @@ bash scripts/run_simulation.sh 20261107_placeholder_atd_interface atd_interface_
 ```
 
 上述编号已存在时，新建 dataset id，替换所有命令中的数据集编号，不覆盖原目录。
-旧长表数据集不供新入口运行，需要按新编号重新生成；查看器仍支持旧数据。
+旧长表数据集不供新入口运行，需要按新编号重新生成；查看器也不兼容旧数据。
 占位算法的全部 X 会使准确性检查失败，这是预期；只验收文件、格式和运行链路。
 
 导出的 `viewer.html` 在对应结果目录，双击即可打开。页面包含全部数据，无需服务器或网络。
@@ -66,7 +66,7 @@ outputs/<experiment_id>/simulation/<id>/
 | 文件 | 列或字段 | 说明 |
 |---|---|---|
 | `observations.csv` | `clip, frame, ball_x, ball_y, 1_x, 1_y, 1_s, …, 46_x, 46_y, 46_s` | 共 142 列；读取器移除 clip 后为算法的 141 列。坐标按球场边界 0–1 归一化，场外值不裁切；缺失为 NaN，速度 s 为 m/s；帧号从 0，25 fps |
-| `metadata.json` | `clip → {slot_teams, pitch_length, pitch_width, fps}` | 算法只收到当前片段的值，不收到 clip id。46 个字符串槽位键映射到 H/A/null；尺寸单位 m，帧率单位 fps；无身份映射、事件或场景名 |
+| `metadata.json` | `clip → {slot_teams, pitch_length, pitch_width, fps}` | 算法只收到当前片段的值，不收到 clip id。全部 46 个字符串槽位键映射到 H/A；尺寸单位 m，帧率单位 fps；无身份映射、事件或场景名 |
 | `debug/clean_positions.csv` | `clip, frame, object, team, x, y, z` | 每帧 23 行（球 + 22 名球员）；object 为 ball 或 p01–p22，球的 team 为空。位置单位 m，z 为球心高度，球员 z 为空；不供算法读取 |
 | `truth.csv` | `clip, frame, label` | H/A/D，只由事件推导 |
 | `events.csv` | `clip, event, t, frame, team` | t 为秒，边界帧 `ceil(25·t)` |
@@ -74,12 +74,13 @@ outputs/<experiment_id>/simulation/<id>/
 | `predictions.csv` | `clip, frame, label` | H/A/D/X，每个片段每帧一行 |
 
 模拟 p01–p22 每片段随机映射到 1–46 中 22 个不同槽位，片段内固定、不互换。
-其余 24 槽位为 NaN，球队为 null。模拟速度由相邻位置按 25 fps 差分计算，首帧用前向差分；
+全部槽位都有球队：24 个 H、22 个 A，每队各 11 个活动槽位；其余 24 槽位的 x/y/s 为 NaN。
+映射直接使用故事种子，同种子同映射。模拟速度由相邻位置按 25 fps 差分计算，首帧用前向差分；
 完整公式和真实 ATD 本地验证命令见 [统一观测接口](../docs/OBSERVATIONS.md)。
 当前每帧都有球和 22 名球员；这是无缺陷模拟范围，不是真实数据质量假设。
 
 clip 是按种子打乱的不透明编号 c001…；故事、种子、主客互换配对只记入评分侧文件。
-同一故事的主客互换版本使用相同故事种子，球场旋转 180°；各片段槽位重新随机分配。
+同一故事的主客互换版本使用相同故事种子，球场旋转 180°；同种子的片段共享槽位映射。
 
 ## 代码索引
 

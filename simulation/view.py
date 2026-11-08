@@ -20,11 +20,7 @@ def build_payload(dataset_id, experiment_id):
     directory = Path(dataset_dir(dataset_id))
     output = Path(REPO_ROOT) / "outputs" / experiment_id / "simulation" / dataset_id
     # Full clean positions are debug-only, including height and script object ids.
-    clean_path = directory / CLEAN_FILE
-    if not clean_path.exists():
-        # Historical viewer exports remain usable; no algorithm loader takes this path.
-        clean_path = directory / "observations.csv"
-    observations = pd.read_csv(clean_path)
+    observations = pd.read_csv(directory / CLEAN_FILE)
     truth = pd.read_csv(directory / "truth.csv").rename(columns={"label": "truth"})
     samples = pd.read_csv(directory / "samples.csv")
     events = pd.read_csv(directory / "events.csv", keep_default_na=False)
