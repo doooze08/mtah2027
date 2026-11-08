@@ -2,8 +2,9 @@
 
 模拟算法输入与真实 tactical ATD 共用格式和唯一入口，决策见 [ADR-001](../docs/ADR-001-ATD-OBSERVATIONS.md)。
 本版本只做格式和接口：不加缺球、噪声、追踪丢失或槽位交换。模拟成绩不代表真实比赛成绩。
-当前只实现 TI01、HD01 两个子型（各含主客互换版本），场景原文见
-[CLEAN_CORNER_CASES_V1.md](scenarios/CLEAN_CORNER_CASES_V1.md)。
+当前实现 TI01、HD01 和基础控球 BP01–BP03（各含主客互换版本）。角落场景规格见
+[CLEAN_CORNER_CASES_V1.md](scenarios/CLEAN_CORNER_CASES_V1.md)，基础控球规格、限制与运行命令见
+[BASIC_POSSESSION.md](scenarios/BASIC_POSSESSION.md)。
 
 ## 流程：三层分开
 
