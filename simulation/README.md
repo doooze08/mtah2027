@@ -1,11 +1,28 @@
 # 模拟测试
 
 模拟算法输入与真实 tactical ATD 共用格式和唯一入口，决策见 [ADR-001](../docs/ADR-001-ATD-OBSERVATIONS.md)。
-本版本只做格式和接口：不加缺球、噪声、追踪丢失或槽位交换。模拟成绩不代表真实比赛成绩。
-当前实现 TI01、HD01 和基础控球 BP01–BP03（各含主客互换版本）。角落场景规格见
+当前生成无观测缺陷的剧本：不加缺球、噪声、追踪丢失或槽位交换。模拟成绩不代表真实比赛成绩。
+当前实现 TI01、HD01、基础控球 BP01–BP03、长传落点 LC01–LC05、盘带擦碰 DC01–DC03，
+共 13 个子型（各含主客互换版本）。角落场景规格见
 [CLEAN_CORNER_CASES_V1.md](scenarios/CLEAN_CORNER_CASES_V1.md)，基础控球规格、限制与运行命令见
 [BASIC_POSSESSION.md](scenarios/BASIC_POSSESSION.md)。
 地滚球、停球、弹跳与可选背景跟随的接口及对照示例见 [MOTION.md](MOTION.md)。
+LC/DC 默认启用背景跟随；BP 与新增剧本按故事抽取运动参数，TI01/HD01 保持旧行为。
+验收结果及 8 个子型的查看器抽查记录见 [本轮验证记录](../docs/SIMULATION-LC-DC-VALIDATION.md)。
+
+只生成和查看新增场景，不运行算法：
+
+```bash
+.venv/bin/python -m simulation.generate \
+  --dataset-id lc_dc_acceptance_20261108 --subtypes LC01,LC02,LC03,LC04,LC05,DC01,DC02,DC03 \
+  --stories 10 --seed 0
+.venv/bin/python -m simulation.generate \
+  --dataset-id lc_dc_preview_20261108 --subtypes LC01,LC02,LC03,LC04,LC05,DC01,DC02,DC03 \
+  --stories 1 --seed 0
+.venv/bin/python -m simulation.view --dataset lc_dc_preview_20261108 --experiment lc_dc_visual_review
+```
+
+上述编号已存在时换新编号；查看器无预测时显示“无预测”。
 
 ## 流程：三层分开
 

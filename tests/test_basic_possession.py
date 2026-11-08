@@ -16,6 +16,7 @@ class BasicPossessionTests(unittest.TestCase):
         registry = all_subtypes()
         pass_counts = set()
         hold_durations = set()
+        decelerations = set()
         for subtype in ("BP01", "BP02", "BP03"):
             self.assertEqual(registry[subtype][0], "basic_possession")
             for seed in range(20):
@@ -47,6 +48,11 @@ class BasicPossessionTests(unittest.TestCase):
                                 positions = np.array([player.position(t) for t in (0, 0.5, 1)])
                                 self.assertGreater(np.ptp(positions, axis=0).max(), 0.0)
                         self.assertEqual(checks.run_all(clip), [])
+                        friction = {s.deceleration for s in builder._ball_segments
+                                    if isinstance(s, GroundRoll)}
+                        self.assertEqual(len(friction), 1)
+                        self.assertTrue(all(1 <= a <= 3 for a in friction))
+                        decelerations.update(friction)
                         for segment in builder._ball_segments:
                             if isinstance(segment, BallWithPlayer) and segment.settle == 0:
                                 for t in np.linspace(segment.t0, segment.t1, 7, endpoint=False):
@@ -140,6 +146,7 @@ class BasicPossessionTests(unittest.TestCase):
                         np.testing.assert_allclose(ap[2:], (PITCH_LENGTH - hp[2], PITCH_WIDTH - hp[3]))
         self.assertEqual(pass_counts, {2, 3, 4})
         self.assertGreater(len(hold_durations), 20)
+        self.assertEqual(len(decelerations), 20)
 
 
 if __name__ == "__main__":
