@@ -28,7 +28,8 @@ import pandas as pd
 from simulation.core import events as ev
 from simulation.core.constants import (AWAY, BALL_ID, BALL_RADIUS, FPS, HOME, PITCH_LENGTH,
                                        PITCH_WIDTH)
-from simulation.core.motion import BallFlight, BallWithPlayer, GroundRoll, GroundTrap, PlayerTrack
+from simulation.core.motion import (BallFlight, BallWithPlayer, BouncingBall, FormationFollow,
+                                    GroundRoll, GroundTrap, PlayerTrack)
 
 # Starting positions in the attacker frame (atk attacks +x, so its goal is at x = 0).
 # A 4-4-2 against a 4-4-2, roughly a settled phase of play around midfield.
@@ -73,22 +74,25 @@ class Clip:
     ball_at: Callable[[float], Tuple[float, float, float]]
     players_at: Callable[[float], List[Tuple[str, str, float, float]]]   # (object, team, x, y)
     controlled_windows: List[Tuple[float, float]] = field(default_factory=list)
+    ground_impacts: List[float] = field(default_factory=list)
 
 
 class ClipBuilder:
     """Stage one story. See the module docstring for the vocabulary."""
 
-    def __init__(self, rng: np.random.Generator, initiating_team: str):
+    def __init__(self, rng: np.random.Generator, initiating_team: str, follow_ball: bool = False):
         if initiating_team not in (HOME, AWAY):
             raise ValueError("initiating_team must be 'H' or 'A'")
         self.rng = rng
         self.initiating_team = initiating_team
+        self.follow_ball = follow_ball
         self.now = 0.0
         self._players: Dict[Tuple[str, str], PlayerTrack] = {}
         self._ball_segments: list = []
         self._events: List[ev.Event] = []
         self._contacts: List[float] = []
         self._controlled_windows: List[Tuple[float, float]] = []
+        self._ground_impacts: List[float] = []
         self._core = [None, None]
         self._expected: Optional[List[str]] = None
         for team in ("atk", "dfn"):
@@ -222,6 +226,24 @@ class ClipBuilder:
         self.now = arrival
         return arrival
 
+    def bounce_to(self, seconds: float, point, restitution: float = 0.55,
+                  bounces: int = 3, deceleration: float = 2.0,
+                  horizontal_retention: float = 0.75) -> float:
+        """Kick to a ground landing, rebound, then roll to rest; return the stop time.
+
+        seconds specifies only the initial flight. Ground impacts are self-check
+        metadata, never player contacts or possession events. kick_to is unchanged.
+        """
+        self.kick_to(seconds, point=point, height=BALL_RADIUS, arrival_contact=False)
+        flight = self._ball_segments[-1]
+        landing = self.ball_position(self.now)
+        bounce = BouncingBall(self.now, landing[:2], flight.velocity(self.now),
+                              restitution, bounces, deceleration, horizontal_retention)
+        self._ball_segments.append(bounce)
+        self._ground_impacts.extend(bounce.ground_impacts)
+        self.now = bounce.stop_time
+        return self.now
+
     def trap(self, player: PlayerTrack, seconds: float):
         """Cushion a rolling ball at the feet, then hold it still at its final offset.
 
@@ -280,7 +302,7 @@ class ClipBuilder:
         """Continue a held ball, or wait after an unreceived ground roll has stopped."""
         self._end_current_segment()
         last = self._ball_segments[-1]
-        if isinstance(last, GroundRoll):
+        if isinstance(last, (GroundRoll, BouncingBall)):
             self.now += seconds
             self._end_current_segment()
             return
@@ -326,6 +348,23 @@ class ClipBuilder:
         object_id = self._object_ids(team_of)
         swap = self.initiating_team == AWAY
 
+        # Following is a render-only translation of background roles. Excluding
+        # all scripted actors prevents a moving target from feeding back into passes.
+        followers, follow_curve = set(), None
+        if self.follow_ball:
+            actors = {(s.player.team, s.player.role) for s in self._ball_segments
+                      if isinstance(s, BallWithPlayer)}
+            followers = {key for key, track in self._players.items()
+                         if key not in actors and not track.moves and not track.still_periods}
+            if followers:
+                tracks = [self._players[key] for key in followers]
+                lower = [max(-6.0, 1.0 - min(p.start[axis] - p.sway_amplitude[axis]
+                                             for p in tracks)) for axis in (0, 1)]
+                upper = [min(6.0, size - 1.0 - max(p.start[axis] + p.sway_amplitude[axis]
+                                                  for p in tracks))
+                         for axis, size in enumerate((PITCH_LENGTH, PITCH_WIDTH))]
+                follow_curve = FormationFollow(self.ball_position, end, lower, upper, FPS)
+
         def place(x, y):
             """Attacker frame -> final frame (rotate the pitch for the swapped version)."""
             return (PITCH_LENGTH - x, PITCH_WIDTH - y) if swap else (x, y)
@@ -336,8 +375,12 @@ class ClipBuilder:
 
         def players_at(t):
             out = []
+            offset = follow_curve.position(t) if follow_curve is not None else None
             for key, track in self._players.items():
-                x, y = place(*track.position(t))
+                position = track.position(t)
+                if key in followers:
+                    position = (position[0] + offset[0], position[1] + offset[1])
+                x, y = place(*position)
                 out.append((object_id[key], team_of[track.team], x, y))
             return out
 
@@ -370,6 +413,7 @@ class ClipBuilder:
             ball_at=ball_at,
             players_at=players_at,
             controlled_windows=list(self._controlled_windows),
+            ground_impacts=list(self._ground_impacts),
         )
 
     # -- internals -----------------------------------------------------------------------------

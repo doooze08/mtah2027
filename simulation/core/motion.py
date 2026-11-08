@@ -11,7 +11,7 @@ attacks towards +x. The builder rotates the whole clip afterwards for the swappe
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 
 import numpy as np
 
@@ -179,6 +179,13 @@ class BallFlight:
         dy = self.p1[1] - self.p0[1]
         return math.hypot(dx, dy) / (self.t1 - self.t0)
 
+    def velocity(self, t):
+        """Unclipped flight velocity, used at the exact ground impact by new motions."""
+        duration = self.t1 - self.t0
+        vz0 = (self.p1[2] - self.p0[2] + 0.5 * GRAVITY * duration ** 2) / duration
+        return ((self.p1[0] - self.p0[0]) / duration,
+                (self.p1[1] - self.p0[1]) / duration, vz0 - GRAVITY * (t - self.t0))
+
 
 @dataclass
 class GroundRoll:
@@ -243,6 +250,124 @@ class GroundTrap:
         u = min(max((t - self.t0) / self.duration, 0.0), 1.0)
         fraction = 0.5 * (1 + math.cos(math.pi * u))
         return tuple(component * fraction for component in self.incoming_velocity)
+
+
+@dataclass
+class BouncingBall:
+    """Damped vertical hops after impact, followed by the existing ground-roll model.
+
+    Each ground impact scales horizontal velocity by horizontal_retention, while
+    vertical rebound speed uses restitution. Ground collisions are not player contacts.
+    """
+    t0: float
+    p0: Point2
+    incoming_velocity: Point3
+    restitution: float = 0.55
+    bounces: int = 3
+    deceleration: float = 2.0
+    horizontal_retention: float = 0.75
+    hops: list = field(init=False, default_factory=list)
+    hop_positions: list = field(init=False, default_factory=list)
+    hop_velocities: list = field(init=False, default_factory=list)
+    ground_impacts: list = field(init=False, default_factory=list)
+    roll: object = field(init=False, default=None)
+    roll_start: float = field(init=False)
+    stop_time: float = field(init=False)
+    t1: float = field(init=False)
+    roll_origin: Point2 = field(init=False)
+
+    def __post_init__(self):
+        if not 0 < self.restitution < 1 or self.bounces < 1:
+            raise ValueError("bouncing needs 0 < restitution < 1 and at least one rebound")
+        if not 0 <= self.horizontal_retention <= 1:
+            raise ValueError("horizontal_retention must be between 0 and 1")
+        time = self.t0
+        x, y = self.p0
+        vx, vy = self.incoming_velocity[:2]
+        vz = abs(self.incoming_velocity[2]) * self.restitution
+        self.ground_impacts.append(time)
+        for _ in range(self.bounces):
+            vx *= self.horizontal_retention
+            vy *= self.horizontal_retention
+            duration = 2 * vz / GRAVITY
+            self.hops.append((time, time + duration, vz))
+            self.hop_positions.append((x, y))
+            self.hop_velocities.append((vx, vy))
+            x += vx * duration
+            y += vy * duration
+            time += duration
+            self.ground_impacts.append(time)
+            vz *= self.restitution
+        self.roll_start = time
+        # The final landing also dissipates horizontal speed before ground rolling.
+        vx *= self.horizontal_retention
+        vy *= self.horizontal_retention
+        self.roll_origin = (x, y)
+        speed = math.hypot(vx, vy)
+        self.stop_time = time + speed / self.deceleration
+        if speed > 0:
+            end = (x + vx * speed / (2 * self.deceleration),
+                   y + vy * speed / (2 * self.deceleration))
+            self.roll = GroundRoll(time, self.stop_time, (x, y), end, self.deceleration)
+        self.t1 = self.stop_time
+
+    def position(self, t):
+        if t >= self.roll_start:
+            if self.roll is not None:
+                return self.roll.position(t)
+            return (*self.roll_origin, BALL_RADIUS)
+        time = max(t, self.t0)
+        for index, (start, stop, vz) in enumerate(self.hops):
+            if time < stop:
+                elapsed = time - start
+                x, y = self.hop_positions[index]
+                vx, vy = self.hop_velocities[index]
+                return (x + vx * elapsed,
+                        y + vy * elapsed,
+                        BALL_RADIUS + vz * elapsed - 0.5 * GRAVITY * elapsed ** 2)
+
+    def velocity(self, t):
+        if t >= self.roll_start:
+            return (*self.roll.velocity(t), 0.0) if self.roll is not None else (0.0, 0.0, 0.0)
+        for index, (start, stop, vz) in enumerate(self.hops):
+            if t < stop:
+                return (*self.hop_velocities[index], vz - GRAVITY * (max(t, start) - start))
+
+
+class FormationFollow:
+    """A common, critically damped translation for non-scripted background players.
+
+    Solve x'' + 2*w*x' + w*w*x = w*w*target exactly per 25-fps target interval,
+    then use cubic Hermite interpolation for continuous position and velocity.
+    No randomness or tactical decisions, and no feedback into the ball trajectory.
+    """
+    def __init__(self, ball_at: Callable, end: float, lower, upper, fps: float,
+                 gain: float = 0.25, response_seconds: float = 1.5):
+        self.dt = 1.0 / fps
+        count = int(math.ceil(end * fps)) + 1
+        self.positions = np.zeros((count, 2))
+        self.velocities = np.zeros((count, 2))
+        origin = np.asarray(ball_at(0)[:2])
+        omega = 1.0 / response_seconds
+        decay = math.exp(-omega * self.dt)
+        for index in range(1, count):
+            target = np.clip(gain * (np.asarray(ball_at((index - 1) * self.dt)[:2]) - origin),
+                             lower, upper)
+            previous, velocity = self.positions[index - 1], self.velocities[index - 1]
+            error = previous - target
+            coefficient = velocity + omega * error
+            self.positions[index] = target + (error + coefficient * self.dt) * decay
+            self.velocities[index] = (velocity - omega * coefficient * self.dt) * decay
+
+    def position(self, t):
+        index = min(max(int(t / self.dt), 0), len(self.positions) - 2)
+        u = min(max((t - index * self.dt) / self.dt, 0.0), 1.0)
+        p0, p1 = self.positions[index:index + 2]
+        v0, v1 = self.velocities[index:index + 2]
+        return ((2 * u ** 3 - 3 * u ** 2 + 1) * p0
+                + (u ** 3 - 2 * u ** 2 + u) * self.dt * v0
+                + (-2 * u ** 3 + 3 * u ** 2) * p1
+                + (u ** 3 - u ** 2) * self.dt * v1)
 
 
 def sample(function, times):

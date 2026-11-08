@@ -5,7 +5,7 @@
 当前实现 TI01、HD01 和基础控球 BP01–BP03（各含主客互换版本）。角落场景规格见
 [CLEAN_CORNER_CASES_V1.md](scenarios/CLEAN_CORNER_CASES_V1.md)，基础控球规格、限制与运行命令见
 [BASIC_POSSESSION.md](scenarios/BASIC_POSSESSION.md)。
-地滚球、局部静止的接口和兼容性验收见 [MOTION.md](MOTION.md)。
+地滚球、停球、弹跳与可选背景跟随的接口及对照示例见 [MOTION.md](MOTION.md)。
 
 ## 流程：三层分开
 

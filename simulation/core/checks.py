@@ -15,7 +15,7 @@ import numpy as np
 
 from simulation.core import events as ev
 from simulation.core.clip import Clip, ball_fully_out
-from simulation.core.constants import BALL_ID, DEAD, FPS, PITCH_LENGTH, PITCH_WIDTH
+from simulation.core.constants import BALL_ID, BALL_RADIUS, DEAD, FPS, PITCH_LENGTH, PITCH_WIDTH
 
 PLAYER_MAX_SPEED = 10.0           # m/s; top sprint speed
 PLAYER_MAX_ACCELERATION = 12.0    # m/s^2
@@ -31,7 +31,7 @@ def run_all(clip: Clip):
     """Every check for one clip; returns the combined list of problems."""
     return (check_player_motion(clip) + check_ball_motion(clip) + check_contacts(clip)
             + check_control_events(clip) + check_event_order(clip) + check_ball_out(clip)
-            + check_truth(clip))
+            + check_ground_impacts(clip) + check_truth(clip))
 
 
 # -- motion -------------------------------------------------------------------------------------
@@ -76,7 +76,10 @@ def check_ball_motion(clip: Clip):
         # A foot can brake much harder than grass friction. Exclude only stencils
         # touching an explicit cushioning action, not arbitrary slow/fast ball motion.
         controlled |= (centres >= start - 1 / FPS) & (centres <= stop + 1 / FPS)
-    free_mask = ~(near_contact | controlled)
+    ground = np.zeros(len(acceleration), dtype=bool)
+    for t in clip.ground_impacts:
+        ground |= np.abs(centres - t) <= 1 / FPS + 1e-12
+    free_mask = ~(near_contact | controlled | ground)
     free = acceleration[free_mask]
     if len(free) and free.max() > BALL_MAX_FREE_ACCELERATION:
         frame = int(np.flatnonzero(free_mask)[np.argmax(free)]) + 1
@@ -98,6 +101,13 @@ def check_contacts(clip: Clip):
         if bz > CONTACT_MAX_HEIGHT:
             problems.append("ball is touched at {:.2f}s at {:.1f} m height".format(t, bz))
     return problems
+
+
+def check_ground_impacts(clip: Clip):
+    """A ground impulse can explain a rebound only at actual grass height."""
+    return ["ground impact at {:.4f}s is not on the ground".format(t)
+            for t in clip.ground_impacts
+            if abs(clip.ball_at(t)[2] - BALL_RADIUS) > 1e-8]
 
 
 # -- events -------------------------------------------------------------------------------------
