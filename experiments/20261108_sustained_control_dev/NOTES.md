@@ -27,11 +27,9 @@
 | BP02 | 10 | 3352 | 0 |
 | BP03 | 10 | 2956 | 0 |
 
-算法输入从不包含答案；本目录 `summarize.py` 是独立评分工具，读取模拟 truth，
-输出精确错误区间、输入／答案／配置／预测 SHA-256、依赖版本和代码版本。
+算法输入从不包含答案；评分使用现有 `simulation.evaluate`。
 详细逐片段评分在 `outputs/20261108_sustained_control_dev/simulation/control_dev_20261108_s120/`：
-`report.md`、`per_clip.csv`、`error_intervals.csv`、`verification.json`。
-错误区间均为空，区间端点按包含两端解释。最终检查结果记录在相邻 final 实验。
+`report.md`、`per_clip.csv`。最终检查结果记录在相邻 final 实验。
 
 复现（从仓库根目录，已有目录不覆盖；复建应换新编号）：
 
@@ -39,7 +37,6 @@
 .venv/bin/python -m simulation.generate --dataset-id control_dev_20261108_s120 --subtypes TI01,HD01,BP01,BP02,BP03 --stories 5 --seed 120
 .venv/bin/python -m simulation.run_algorithm --experiment 20261108_sustained_control_dev --dataset control_dev_20261108_s120
 .venv/bin/python -m simulation.evaluate --experiment 20261108_sustained_control_dev --dataset control_dev_20261108_s120
-.venv/bin/python experiments/20261108_sustained_control_dev/summarize.py 20261108_sustained_control_dev control_dev_20261108_s120
 ```
 
 本机实际复用 `/Users/yyluo/Projects/mtah2027/.venv/bin/python`。
