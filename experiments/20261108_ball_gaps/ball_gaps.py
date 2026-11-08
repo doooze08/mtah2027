@@ -1,7 +1,7 @@
 """Aggregate ball-position gaps using tracking coordinates only.
 
-    python -m observations.ball_gaps --dataset <simulation_dataset_id>
-    python -m observations.ball_gaps --data-dir /path/to/data
+    python -m experiments.20261108_ball_gaps.ball_gaps --dataset <simulation_dataset_id>
+    python -m experiments.20261108_ball_gaps.ball_gaps --data-dir /path/to/data
 
 No frame records, clip identifiers, labels or tracking timestamps are exported.
 """
