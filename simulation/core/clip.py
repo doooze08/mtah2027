@@ -28,7 +28,7 @@ import pandas as pd
 from simulation.core import events as ev
 from simulation.core.constants import (AWAY, BALL_ID, BALL_RADIUS, FPS, HOME, PITCH_LENGTH,
                                        PITCH_WIDTH)
-from simulation.core.motion import BallFlight, BallWithPlayer, PlayerTrack
+from simulation.core.motion import BallFlight, BallWithPlayer, GroundRoll, GroundTrap, PlayerTrack
 
 # Starting positions in the attacker frame (atk attacks +x, so its goal is at x = 0).
 # A 4-4-2 against a 4-4-2, roughly a settled phase of play around midfield.
@@ -72,6 +72,7 @@ class Clip:
     restart_team: List[str]                     # per frame "H" / "A" on a restart frame, else ""
     ball_at: Callable[[float], Tuple[float, float, float]]
     players_at: Callable[[float], List[Tuple[str, str, float, float]]]   # (object, team, x, y)
+    controlled_windows: List[Tuple[float, float]] = field(default_factory=list)
 
 
 class ClipBuilder:
@@ -87,6 +88,7 @@ class ClipBuilder:
         self._ball_segments: list = []
         self._events: List[ev.Event] = []
         self._contacts: List[float] = []
+        self._controlled_windows: List[Tuple[float, float]] = []
         self._core = [None, None]
         self._expected: Optional[List[str]] = None
         for team in ("atk", "dfn"):
@@ -124,9 +126,23 @@ class ClipBuilder:
         self._ball_segments = [BallWithPlayer(0.0, 0.0, player, offset, offset, settle=0.0)]
 
     def hold(self, player: PlayerTrack, seconds: float, height: float = BALL_RADIUS,
-             in_front: float = BALL_AT_FEET):
+             in_front: float = BALL_AT_FEET, still: bool = False):
         """The player keeps the ball close: at the feet, or in the hands (height ~1-2 m,
-        in_front=0). A change of height or offset is spread over the whole hold."""
+        in_front=0). A change of height or offset is spread over the whole hold.
+
+        still=True freezes both at their current pose for this interval only. The ball
+        offset and height are preserved; height/in_front apply only to ordinary holds.
+        """
+        if still:
+            incoming = self._segment_at(self.now)
+            if isinstance(incoming, GroundRoll) and incoming.speed(self.now) > 1e-9:
+                raise ValueError("a moving reception needs trap() before a still hold")
+            bx, by, bz = self.ball_position(self.now)
+            px, py = player.position(self.now)
+            offset = (bx - px, by - py, bz)
+            player.add_still(self.now, self.now + seconds)
+            self._with_player(player, seconds, offset, settle=0.0)
+            return
         target = self._forward(player.team, in_front) + (height,)
         self._with_player(player, seconds, target, settle=seconds)
 
@@ -163,6 +179,72 @@ class ClipBuilder:
         self.now = arrival
         return arrival
 
+    def roll_to(self, seconds: Optional[float] = None, player: Optional[PlayerTrack] = None,
+                point=None, arrival_speed: Optional[float] = None,
+                deceleration: float = 2.0, arrival_contact: bool = True) -> float:
+        """A ground pass with fixed grass deceleration. Specify time OR arrival speed.
+
+        A speed of zero is for unreceived balls rolling to rest, not a reception.
+        Moving receivers are targeted at their arrival position. Truth is not inferred.
+        """
+        if (player is None) == (point is None):
+            raise ValueError("roll_to needs exactly one of player= or point=")
+        if (seconds is None) == (arrival_speed is None):
+            raise ValueError("specify exactly one of seconds or arrival_speed")
+        start = self.ball_position(self.now)
+        if abs(start[2] - BALL_RADIUS) > 1e-9:
+            raise ValueError("roll_to requires a ball on the ground")
+        if deceleration <= 0 or (arrival_speed is not None and arrival_speed < 0):
+            raise ValueError("deceleration must be positive; arrival speed cannot be negative")
+        if arrival_speed is not None:
+            def remaining(duration):
+                target = player.position(self.now + duration) if player is not None else point
+                return math.hypot(target[0] - start[0], target[1] - start[1]) - (
+                    arrival_speed * duration + 0.5 * deceleration * duration ** 2)
+            low, high = 0.0, 1.0
+            while remaining(high) > 0:
+                high *= 2
+            for _ in range(50):
+                middle = (low + high) / 2
+                if remaining(middle) > 0:
+                    low = middle
+                else:
+                    high = middle
+            seconds = (low + high) / 2
+        arrival = self.now + seconds
+        target = player.position(arrival) if player is not None else point
+        roll = GroundRoll(self.now, arrival, start[:2], tuple(target[:2]), deceleration)
+        self._end_current_segment()
+        self._contacts.append(self.now)
+        if arrival_contact:
+            self._contacts.append(arrival)
+        self._ball_segments.append(roll)
+        self.now = arrival
+        return arrival
+
+    def trap(self, player: PlayerTrack, seconds: float):
+        """Cushion a rolling ball at the feet, then hold it still at its final offset.
+
+        Arrival velocity is preserved at contact and decays smoothly to zero. The
+        script emits control_start BEFORE this action, at the actual reception time.
+        """
+        incoming = self._segment_at(self.now)
+        if not isinstance(incoming, GroundRoll):
+            raise ValueError("trap requires an incoming ground roll")
+        if not 0.1 <= seconds <= 0.3:
+            raise ValueError("trap duration must be 0.1-0.3 seconds")
+        start = self.ball_position(self.now)
+        velocity = incoming.velocity(self.now)
+        speed = math.hypot(*velocity)
+        if not 0.3 - 1e-9 <= speed * seconds / 2 <= 1.0 + 1e-9:
+            raise ValueError("trap distance must be 0.3-1 m; choose duration for arrival speed")
+        player.add_still(self.now, self.now + seconds)
+        self._end_current_segment()
+        trap = GroundTrap(self.now, self.now + seconds, start[:2], velocity)
+        self._ball_segments.append(trap)
+        self._controlled_windows.append((self.now, self.now + seconds))
+        self.now += seconds
+
     # -- staging players -----------------------------------------------------------------------
 
     def start_at(self, player: PlayerTrack, point):
@@ -195,9 +277,13 @@ class ClipBuilder:
         self._events.append(ev.Event(kind, self.now if at is None else at, team))
 
     def wait(self, seconds: float):
-        """Let time pass without staging anything (the ball stays where the segment puts it)."""
+        """Continue a held ball, or wait after an unreceived ground roll has stopped."""
         self._end_current_segment()
         last = self._ball_segments[-1]
+        if isinstance(last, GroundRoll):
+            self.now += seconds
+            self._end_current_segment()
+            return
         if not isinstance(last, BallWithPlayer):
             raise ValueError("wait() needs the ball to be with a player")
         self._with_player(last.player, seconds, last.target_offset)
@@ -283,6 +369,7 @@ class ClipBuilder:
             restart_team=restart_team,
             ball_at=ball_at,
             players_at=players_at,
+            controlled_windows=list(self._controlled_windows),
         )
 
     # -- internals -----------------------------------------------------------------------------

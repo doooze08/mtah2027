@@ -70,9 +70,16 @@ def check_ball_motion(clip: Clip):
     for t in clip.contact_times:
         centre = t * FPS - 1
         near_contact[max(0, int(math.floor(centre)) - 1):int(math.ceil(centre)) + 2] = True
-    free = acceleration[~near_contact]
+    controlled = np.zeros(len(acceleration), dtype=bool)
+    centres = (np.arange(len(acceleration)) + 1) / FPS
+    for start, stop in clip.controlled_windows:
+        # A foot can brake much harder than grass friction. Exclude only stencils
+        # touching an explicit cushioning action, not arbitrary slow/fast ball motion.
+        controlled |= (centres >= start - 1 / FPS) & (centres <= stop + 1 / FPS)
+    free_mask = ~(near_contact | controlled)
+    free = acceleration[free_mask]
     if len(free) and free.max() > BALL_MAX_FREE_ACCELERATION:
-        frame = int(np.flatnonzero(~near_contact)[np.argmax(free)]) + 1
+        frame = int(np.flatnonzero(free_mask)[np.argmax(free)]) + 1
         problems.append("ball changes course at frame {} without a touch ({:.1f} m/s^2)".format(
             frame, free.max()))
     if (xyz[:, 2] < 0).any():
