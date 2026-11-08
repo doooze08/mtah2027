@@ -182,34 +182,67 @@ class BallFlight:
 
 @dataclass
 class GroundRoll:
-    """Straight, uniformly decelerating roll that stops at p1 and stays there.
+    """A straight ground pass with fixed deceleration and nonzero arrival speed.
 
-    The stop time is independent of segment coverage t1: extending a stopped segment
-    must not change the earlier trajectory. Distance d and duration T imply v0=2d/T.
+    t1 is the reception time, not necessarily the stop time. With no receiver,
+    continuing the same segment rolls the ball onward until friction stops it.
     """
     t0: float
     t1: float
     p0: Point2
     p1: Point2
-    stop_time: float = field(init=False)
+    deceleration: float = 2.0
+    arrival_time: float = field(init=False)
+    initial_speed: float = field(init=False)
+    direction: Point2 = field(init=False)
 
     def __post_init__(self):
-        if self.t1 <= self.t0:
-            raise ValueError("ground roll must have positive duration")
-        if not all(math.isfinite(v) for p in (self.p0, self.p1) for v in p):
-            raise ValueError("ground roll endpoints must be finite")
-        self.stop_time = self.t1
+        duration = self.t1 - self.t0
+        distance = math.hypot(self.p1[0] - self.p0[0], self.p1[1] - self.p0[1])
+        if duration <= 0 or distance <= 0 or self.deceleration <= 0:
+            raise ValueError("ground roll needs positive duration, distance and deceleration")
+        self.initial_speed = distance / duration + 0.5 * self.deceleration * duration
+        if self.initial_speed - self.deceleration * duration < -1e-9:
+            raise ValueError("arrival time is too late: the ball would stop before the target")
+        self.arrival_time = self.t1
+        self.direction = ((self.p1[0] - self.p0[0]) / distance,
+                          (self.p1[1] - self.p0[1]) / distance)
 
     def position(self, t) -> Point3:
-        u = min(max((t - self.t0) / (self.stop_time - self.t0), 0.0), 1.0)
-        x, y = lerp(self.p0, self.p1, 2 * u - u * u)
-        return (x, y, BALL_RADIUS)
+        elapsed = min(max(t - self.t0, 0.0), self.initial_speed / self.deceleration)
+        distance = self.initial_speed * elapsed - 0.5 * self.deceleration * elapsed ** 2
+        return (self.p0[0] + self.direction[0] * distance,
+                self.p0[1] + self.direction[1] * distance, BALL_RADIUS)
 
     def speed(self, t):
-        duration = self.stop_time - self.t0
-        elapsed = min(max(t - self.t0, 0.0), duration)
-        return 2 * math.hypot(self.p1[0] - self.p0[0], self.p1[1] - self.p0[1]) / duration * (
-            1 - elapsed / duration)
+        return max(0.0, self.initial_speed - self.deceleration * max(t - self.t0, 0.0))
+
+    def velocity(self, t):
+        return tuple(component * self.speed(t) for component in self.direction)
+
+
+@dataclass
+class GroundTrap:
+    """A foot cushions the incoming ball: continuous cosine speed decay to rest."""
+    t0: float
+    t1: float
+    p0: Point2
+    incoming_velocity: Point2
+    duration: float = field(init=False)
+
+    def __post_init__(self):
+        self.duration = self.t1 - self.t0
+
+    def position(self, t) -> Point3:
+        u = min(max((t - self.t0) / self.duration, 0.0), 1.0)
+        travel_time = self.duration * (0.5 * u + math.sin(math.pi * u) / (2 * math.pi))
+        return (self.p0[0] + self.incoming_velocity[0] * travel_time,
+                self.p0[1] + self.incoming_velocity[1] * travel_time, BALL_RADIUS)
+
+    def velocity(self, t):
+        u = min(max((t - self.t0) / self.duration, 0.0), 1.0)
+        fraction = 0.5 * (1 + math.cos(math.pi * u))
+        return tuple(component * fraction for component in self.incoming_velocity)
 
 
 def sample(function, times):

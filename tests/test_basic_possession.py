@@ -7,7 +7,7 @@ import numpy as np
 from simulation.core import ClipBuilder, checks
 from simulation.core.clip import ball_fully_out
 from simulation.core.constants import BALL_RADIUS, FPS, PITCH_LENGTH, PITCH_WIDTH
-from simulation.core.motion import BallWithPlayer
+from simulation.core.motion import BallWithPlayer, GroundRoll, GroundTrap
 from simulation.scenarios import all_subtypes
 
 
@@ -41,15 +41,37 @@ class BasicPossessionTests(unittest.TestCase):
                                         np.testing.assert_allclose(player.position(t),
                                                                    player.position(period.t0),
                                                                    atol=1e-9, rtol=0)
-                                        np.testing.assert_allclose(clip.ball_at(t),
-                                                                   clip.ball_at(period.t0),
-                                                                   atol=1e-9, rtol=0)
                             self.assertTrue(all(a > 0 for a in player.sway_amplitude))
                             if (player.team, player.role) not in frozen:
                                 self.assertEqual(player.still_periods, [])
                                 positions = np.array([player.position(t) for t in (0, 0.5, 1)])
                                 self.assertGreater(np.ptp(positions, axis=0).max(), 0.0)
                         self.assertEqual(checks.run_all(clip), [])
+                        for segment in builder._ball_segments:
+                            if isinstance(segment, BallWithPlayer) and segment.settle == 0:
+                                for t in np.linspace(segment.t0, segment.t1, 7, endpoint=False):
+                                    np.testing.assert_allclose(segment.position(t),
+                                                               segment.position(segment.t0),
+                                                               atol=1e-9, rtol=0)
+                            if isinstance(segment, GroundTrap):
+                                incoming = next(s for s in builder._ball_segments
+                                                if isinstance(s, GroundRoll)
+                                                and abs(s.arrival_time - segment.t0) < 1e-9)
+                                self.assertGreaterEqual(incoming.speed(segment.t0), 3 - 1e-9)
+                                self.assertLessEqual(incoming.speed(segment.t0), 10 + 1e-9)
+                                self.assertGreaterEqual(segment.duration, 0.1 - 1e-9)
+                                self.assertLessEqual(segment.duration, 0.3 + 1e-9)
+                                np.testing.assert_allclose(incoming.velocity(segment.t0),
+                                                           segment.velocity(segment.t0), atol=1e-9)
+                                np.testing.assert_allclose(incoming.position(segment.t0),
+                                                           segment.position(segment.t0), atol=1e-9)
+                                travel = np.linalg.norm(np.array(segment.position(segment.t1)[:2])
+                                                        - np.array(segment.p0))
+                                self.assertGreaterEqual(travel, 0.3 - 1e-9)
+                                self.assertLessEqual(travel, 1.0 + 1e-9)
+                                self.assertTrue(any(e.kind == "control_start"
+                                                    and abs(e.t - segment.t0) < 1e-9
+                                                    for e in clip.events))
                         self.assertGreaterEqual((clip.n_frames - 1) / FPS, 10.0)
                         self.assertLessEqual((clip.n_frames - 1) / FPS, 20.0)
                         self.assertEqual(clip.truth[:FPS], ["D"] * FPS)
@@ -65,7 +87,6 @@ class BasicPossessionTests(unittest.TestCase):
                                      if isinstance(s, BallWithPlayer)
                                      and s.t0 >= clip.core_window[0] / FPS - 1 / FPS
                                      and np.allclose(s.start_offset, s.target_offset, atol=1e-9)
-                                     and np.allclose(s.target_offset, (0.0, 0.0, BALL_RADIUS), atol=1e-9)
                                      and s.t1 > s.t0]
                             pass_counts.add(len(holds))
                             self.assertIn(len(holds), (2, 3, 4))
@@ -77,7 +98,7 @@ class BasicPossessionTests(unittest.TestCase):
                                 positions = np.array([clip.ball_at(t) for t in times])
                                 np.testing.assert_allclose(positions, np.tile(positions[0], (5, 1)))
 
-                        if subtype in ("BP02", "BP03"):
+                        if subtype in ("BP01", "BP02", "BP03"):
                             ball = clip.frames[clip.frames.object == "ball"]
                             np.testing.assert_allclose(ball.z, BALL_RADIUS, atol=1e-9, rtol=0)
 
