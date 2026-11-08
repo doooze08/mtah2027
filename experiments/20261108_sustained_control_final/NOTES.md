@@ -1,18 +1,18 @@
 # 基础状态机最终检查
 
-算法和配置在 `freeze.json` 中以 SHA-256 冻结，冻结后不再根据最终集或真实比赛修改。
+算法和配置在提交 `0dee847` 定稿，之后不再根据最终集或真实比赛修改。
 开发集种子 120–124；最终集预先指定种子 901–905，TI01、HD01、BP01–BP03 各 5 个故事及镜像，
 共 50 段。两个集合的故事种子不重叠，但使用同一场景生成模型，不代表独立现实分布。
 
-执行一次检查：
+最终检查命令（只运行一次，结果不用于继续调参）：
 
 ```bash
-.venv/bin/python experiments/20261108_sustained_control_final/check_once.py
+.venv/bin/python -m simulation.generate --dataset-id control_final_20261108_s901 --subtypes TI01,HD01,BP01,BP02,BP03 --stories 5 --seed 901
+.venv/bin/python -m simulation.run_algorithm --experiment 20261108_sustained_control_final --dataset control_final_20261108_s901
+.venv/bin/python -m simulation.evaluate --experiment 20261108_sustained_control_final --dataset control_final_20261108_s901
 ```
 
-脚本先验证冻结校验和，在 outputs 中排他创建运行标记，再生成最终集、运行一次预测并评分。
-已有标记会终止，不重跑最终集，不根据结果继续修改；若失败，保留失败结论。
-评分程序可以重读既有预测，不重复运行算法。冻结提交为 `0dee847`。此次最终检查只生成和运行一次，未据此修改算法或配置。
+此次最终检查只生成和运行一次，未据此修改算法或配置。
 
 ## 真实比赛本地命令
 
@@ -57,8 +57,6 @@ BP02-001 的主客镜像 c034、c040 均在第 165 帧提前换权；实际控�
 逐片段报告如下；“错误帧”使用各片段的零起点帧号。这里的表是实验结论摘录，
 完整评分报告与预测不进 Git，位于
 `outputs/20261108_sustained_control_final/simulation/control_final_20261108_s901/`。
-`verification.json` 记录输入、模拟答案、配置、算法、预测 SHA-256 和依赖版本；
-`error_intervals.csv` 精确列出包含两端的错误区间。
 
 | clip | 子型 | 发起队 | 帧数 | 全片全对 | 错误帧（真值→预测） |
 |---|---|---|---:|---|---|
@@ -117,21 +115,20 @@ BP02-001 的主客镜像 c034、c040 均在第 165 帧提前换权；实际控�
 
 7 项单元／回归测试通过：已有场景和观测层测试 3 项，新增 4 项覆盖
 回溯控制、主客对称、静止保持、短暂接触、双方争抢、球 NaN、球半径和初始 D。
-正式算法和参数冻结校验和未改变。公开答案与公开评分未参与开发或最终检查。
+公开答案与公开评分未参与开发或最终检查。
 最终集与开发集同属 5 个生成子型，99.9851% 不代表真实比赛正确率。
 
 ## Mac 真实比赛运行结果
 
 已使用 `/Users/yyluo/Projects/mtah2027/.venv/bin/python` 运行上述 tactical 命令，
-数据根目录为 `/Users/yyluo/Projects/mtah2027/data`，冻结算法生成提交文件后，官方校验通过：
+数据根目录为 `/Users/yyluo/Projects/mtah2027/data`，定稿算法生成提交文件后，官方校验通过：
 199,319 行、frame=0..199318；H=75,892、A=65,308、D=58,119、X=0。
 预测含 224 段控球，均值 25.2 s；这些是输出诊断，不能判断标签是否正确。
 真实追踪已知有 85,831 帧球缺失；仅保持上一状态，专项缺失策略未处理。
 没有运行公开五分钟评分，没有读取公开答案或派生评分。
 
 原始日志和提交文件在 `outputs/20261108_sustained_control_final/`，分别为
-`real_validation/run.log`、`real_validation/validate.log`、`real_validation/verification.json`、
+`real_validation/run.log`、`real_validation/validate.log`、
 `submission/sustained_control.csv`。运行计时约 75.05 s；`/usr/bin/time -l` 的资源统计
 受到 macOS sysctl 权限限制，外层计时命令退出 1，无法取得 RSS。
 预测程序已写出文件且单独运行的官方校验退出 0；没有为获取资源统计重复加载比赛。
-运行前后算法和配置与 freeze.json 的 SHA-256 一致。
