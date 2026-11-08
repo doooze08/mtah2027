@@ -19,14 +19,14 @@
 <div class="pitch-wrap"><canvas id="pitch" role="img" aria-label="球员与球的位置"></canvas></div>
 <div class="transport"><div class="transport-row"><div class="buttons"><button id="previous" aria-label="上一帧">← 一帧</button><button id="play" class="primary">播放</button><button id="next" aria-label="下一帧">一帧 →</button></div><select id="speed" aria-label="播放速度"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div><input id="seek" type="range" min="0" value="0" step="1" aria-label="时间轴"><div class="time-row"><span class="small">第 <input id="frameInput" type="number" min="0" value="0" step="1" aria-label="帧编号"> 帧 <span id="lastFrame"></span></span><span id="clock" class="readout"></span></div></div>
 <div class="tabs"><label><input id="showTrail" type="checkbox" checked>球的近 1 秒轨迹</label><label><input id="showIds" type="checkbox">球员编号</label><label><input id="showEvents" type="checkbox" checked>事件与核心窗口</label></div>
-<div class="chart-head"><span>球高度 z（m）</span><strong id="ballHeight" class="readout"></strong></div><canvas id="height" role="img" aria-label="球高度随时间变化"></canvas>
+<div class="chart-head"><span>球高度 z（m）· 仅模拟剧本有，算法看不到</span><strong id="ballHeight" class="readout"></strong></div><canvas id="height" role="img" aria-label="球高度随时间变化"></canvas>
 <div class="chart-head"><span>控球标签对照</span><span><span style="color:#d37049">■</span> 不一致区间</span></div><canvas id="timeline" role="img" aria-label="正确标签与算法预测时间轴"></canvas><div class="chart-foot">点击高度曲线或标签色带，可跳到对应帧。灰色表示缺少预测。</div>
 </section>
 <aside class="side"><section class="panel status"><div class="status-title">当前帧的判断</div><div class="label-pair"><div class="label-cell"><small>正确标签</small><span id="truthBadge" class="badge"></span></div><div class="label-cell"><small>算法预测</small><span id="predictionBadge" class="badge"></span></div></div><div id="comparison" class="status-note" aria-live="polite"></div><div id="clipSummary" class="status-note"></div></section>
 <section class="panel"><div class="panel-heading"><span>剧本事件</span><span class="small">点击跳帧</span></div><div id="events" class="events"></div></section>
 <section class="panel hint"><div class="section-kicker">怎样看这段运动</div>先看球的位置，再看高度，最后对照两条标签。球从对手头顶经过，或被碰到，并不一定意味着控球权已经转移。<br><br><span class="key">空格</span> 播放 / 暂停<br><span class="key">←</span> <span class="key">→</span> 前后逐帧</section></aside>
 </div>
-<footer class="footer">模拟数据检查工具；当前场景提供理想裁判信号。动画与模拟成绩不代表真实比赛效果。</footer>
+<footer class="footer">模拟数据检查工具；显示完整剧本轨迹与事件，仅供排查，算法看不到球高或裁判信号。动画与模拟成绩不代表真实比赛效果。</footer>
 </main>
 <script id="simulation-data" type="application/json">__SIMULATION_PAYLOAD__</script>
 <script>

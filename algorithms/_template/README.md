@@ -9,8 +9,8 @@
 
 ## 输入 / 输出
 
-- 输入：用到的数据（ATD / Smart Tagging / homography / video）
-- 输出：长度 199,319 的 `frame,label` CSV，标签 `H` / `A` / `D` / `X`（见 [SUBMISSION.md](../../SUBMISSION.md)）
+- 输入：`predict(observations, metadata, config)`；仅 tactical ATD 格式观测，见 [统一观测接口](../../docs/OBSERVATIONS.md)
+- 输出：与输入帧数相同的标签序列（真实全场 199,319 帧），由运行器写 CSV；标签 `H` / `A` / `D` / `X`（见 [SUBMISSION.md](../../SUBMISSION.md)）
 
 ## 额外依赖
 

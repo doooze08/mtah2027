@@ -15,13 +15,11 @@ GRAVITY = 9.81                # m/s^2, used for ball flights
 # Labels
 HOME, AWAY, DEAD = "H", "A", "D"
 
-# Object id of the ball in the observation table; players are p01..p22.
+# Object ids in the internal clean world; never algorithm-visible identities.
 BALL_ID = "ball"
 
 # Column names of the files written to outputs/simulation_sets/<dataset_id>/.
 # simulation/README.md documents the same lists; keep the two in sync.
-OBSERVATION_COLUMNS = ["clip", "frame", "object", "team", "x", "y", "z"]
-GAME_STATE_COLUMNS = ["clip", "frame", "play_live", "restart_team"]
 TRUTH_COLUMNS = ["clip", "frame", "label"]
 EVENT_COLUMNS = ["clip", "event", "t", "frame", "team"]
 SAMPLE_COLUMNS = ["clip", "family", "subtype", "story_id", "seed", "initiating_team",

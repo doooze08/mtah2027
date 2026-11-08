@@ -65,13 +65,14 @@ def assign_clip_ids(built, base_seed):
 
 
 def tables(built):
-    """Concatenate every clip into the five dataset tables."""
-    observations, game_state, truth, events, samples = [], [], [], [], []
+    """Build algorithm observations separately from answers and debug-only clean positions."""
+    observations, metadata, truth, events, samples, clean = [], {}, [], [], [], []
     for item in built:
         clip, clip_id = item["clip"], item["clip_id"]
-        obs, state = observe(clip_id, clip)
-        observations.append(obs)
-        game_state.append(state)
+        obs, meta = observe(clip_id, clip, seed=item["seed"])
+        observations.append(obs.assign(clip=clip_id))
+        metadata[clip_id] = meta
+        clean.append(clip.frames.assign(clip=clip_id))
         truth.append(pd.DataFrame({"clip": clip_id, "frame": range(clip.n_frames),
                                    "label": clip.truth}))
         events.append(pd.DataFrame([{"clip": clip_id, "event": e.kind, "t": e.t,
@@ -84,8 +85,8 @@ def tables(built):
             "core_start": clip.core_window[0], "core_stop": clip.core_window[1],
             "expected_sequence": " ".join(clip.expected_sequence),
         })
-    return (pd.concat(observations), pd.concat(game_state), pd.concat(truth),
-            pd.concat(events), pd.DataFrame(samples))
+    return (pd.concat(observations), metadata, pd.concat(truth),
+            pd.concat(events), pd.DataFrame(samples), pd.concat(clean))
 
 
 def verify_written(directory):
@@ -116,7 +117,8 @@ def write_manifest(directory, args):
         "subtypes": args.subtypes,
         "stories_per_subtype": args.stories,
         "base_seed": args.seed,
-        "observation_layer": "v1_passthrough",
+        "observation_layer": "atd_format_v1_no_defects",
+        "slot_mapping": "sha256(clip_id) + story seed; 22 distinct slots from 1..46",
         "git_commit": git("rev-parse", "HEAD"),
         "git_dirty": bool(git("status", "--porcelain", "--", "simulation")),
         "python": platform.python_version(),
@@ -134,14 +136,12 @@ def main():
     parser.add_argument("--subtypes", required=True, help="comma-separated, e.g. TI01,HD01")
     parser.add_argument("--stories", type=int, default=1, help="stories per subtype")
     parser.add_argument("--seed", type=int, default=0, help="base seed; story k uses seed + k")
-    parser.add_argument("--overwrite", action="store_true",
-                        help="replace an existing dataset (normally make a new dataset id)")
     args = parser.parse_args()
     args.subtypes = [s.strip() for s in args.subtypes.split(",") if s.strip()]
 
     directory = io.dataset_dir(args.dataset_id)
-    if os.path.exists(directory) and not args.overwrite:
-        raise SystemExit("{} exists; pick a new dataset id or pass --overwrite".format(directory))
+    if os.path.exists(directory):
+        raise SystemExit("{} exists; pick a new dataset id".format(directory))
 
     built = assign_clip_ids(build_clips(args.subtypes, args.stories, args.seed), args.seed)
 
