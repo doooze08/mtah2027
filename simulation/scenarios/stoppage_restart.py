@@ -140,14 +140,18 @@ def _shot_out(b, rng, goal):
     motion = StoryMotion.sample(rng)
     y = PITCH_WIDTH / 2 if goal else rng.uniform(45, 49)
     holder = _start(b, rng, (rng.uniform(93, 97), y), motion)
+    taker = b.player("dfn", "gk" if not goal else "rs")
     release = b.now
-    b.roll_to(point=(PITCH_LENGTH + 0.65, y), arrival_speed=0,
-              deceleration=motion.deceleration, arrival_contact=False)
+    catch_point = (PITCH_LENGTH + 0.4, y)
+    catch_speed = rng.uniform(12.0, 18.0)
+    b.roll_to(point=catch_point, arrival_speed=catch_speed, deceleration=motion.deceleration)
+    # Receive only after the whole ball is out; collecting a dead ball is not control_start.
+    sway = tuple(p - a for p, a in zip(taker.position(b.now), taker.anchor(b.now)))
+    b.start_at(taker, tuple(p - s for p, s in zip(catch_point, sway)))
     dead_at = b.time_ball_leaves_pitch(release, b.now)
     b.event("ball_out", at=dead_at)
-    taker = b.player("dfn", "gk" if not goal else "rs")
-    b.start_at(taker, (PITCH_LENGTH - 1, y))
-    _collect(b, taker)
+    b.trap(taker, motion.trap_seconds(catch_speed))
+    b.hold(taker, 0.8, in_front=0)
     _carry(b, taker, (PITCH_LENGTH / 2, PITCH_WIDTH / 2) if goal else (100, 40))
     _wait_for_restart(b, rng, taker, dead_at, long=goal)
     _ground_restart(b, rng, taker, b.player("dfn", "lcb"), motion)

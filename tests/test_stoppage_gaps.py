@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from simulation.core import checks
+from simulation.core.clip import ball_fully_out
 from simulation.core.constants import FPS
 from simulation.core.events import Event
 from simulation.core.gaps import BallGapConfig, ball_gap_mask, intervals
@@ -97,6 +98,24 @@ class StoppageStoryTests(unittest.TestCase):
                                                               clip.ball_at(kick.t)[:2])) / dt
                             self.assertGreaterEqual(speed, 10 - 0.01)
                             self.assertLessEqual(speed, 25 + 0.01)
+                        if subtype in ("ST03", "ST04"):
+                            speed = np.linalg.norm(np.subtract(clip.ball_at(dead.t + dt)[:2],
+                                                              clip.ball_at(dead.t)[:2])) / dt
+                            self.assertGreaterEqual(speed, 12)
+                            self.assertLessEqual(speed, 18.1)
+                            self.assertFalse(ball_fully_out(clip.ball_at(dead.t - dt)))
+                            self.assertTrue(ball_fully_out(clip.ball_at(dead.t + dt)))
+                            reception = next(t for t in clip.contact_times if t > dead.t)
+                            self.assertLess(reception, restart.t)
+                            self.assertEqual(clip.truth[int(np.ceil(reception * FPS))], "D")
+                            self.assertFalse(any(e.kind == "control_start"
+                                                 and dead.t < e.t < restart.t for e in clip.events))
+                            # The full final live-frame interval must also contain a fast shot.
+                            last_live = dead.frame - 1
+                            frame_speed = np.linalg.norm(np.subtract(
+                                clip.ball_at(last_live / FPS)[:2],
+                                clip.ball_at((last_live - 1) / FPS)[:2])) * FPS
+                            self.assertGreater(frame_speed, 12)
                         if subtype == "ST01":
                             speed = np.linalg.norm(np.subtract(clip.ball_at(dead.t + dt)[:2],
                                                               clip.ball_at(dead.t)[:2])) / dt
