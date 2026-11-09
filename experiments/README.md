@@ -1,30 +1,37 @@
 # experiments/
 
-一次实验 = 一个目录，只放**配置和记录**（小文本，提交到 Git）。结果文件放 `outputs/`（不提交）。
+实验规范的唯一来源。一次实验 = 一个目录，只放**配置和记录**（小文本，进 Git）；
+预测、报告、日志放同名的 `outputs/<experiment_id>/`（不进 Git）。
 
 ```
 experiments/
-├─ _template/
-│  ├─ config.yaml        实验配置模板
-│  └─ NOTES.md           实验记录模板
+├─ _template/            config.yaml、NOTES.md 模板
 └─ <experiment_id>/
    ├─ config.yaml        算法名 + 参数 + 数据源（完整可复现）
-   └─ NOTES.md           目的、结果（spellF1 / macroF1）、结论
+   └─ NOTES.md           目的、结果数字、结论与限制
 ```
 
-## 命名：`<YYYYMMDD>_<algo_name>_<short_desc>`
-
-例如 `20261025_ball_owner_hmm_window50`。同一个名字在 `outputs/` 中对应同名结果目录：
-
-```
-experiments/20261025_ball_owner_hmm_window50/   ← 配置 + 记录（提交）
-outputs/20261025_ball_owner_hmm_window50/       ← 提交文件、评测报告、日志（不提交）
-```
+命名：`<YYYYMMDD>_<algo_name>_<short_desc>`，用 `scripts/new_experiment.sh <algo_name> <short_desc>` 创建两个对应目录。
 
 ## 规则
 
-- 用 `scripts/new_experiment.sh <algo_name> <short_desc>` 创建，自动生成两个对应目录。
-- 实验跑完后**不要修改** `config.yaml`；改参数就新建一个实验，保证每条结果都能追溯。
-- 结果数字写进 `NOTES.md`，这是团队对比结果的唯一记录（`outputs/` 不在 Git 里）。
-- 每人只修改自己创建的实验目录，避免冲突。
-- 模拟实验仍使用这里的配置和记录，注明固定测试集的 `dataset_id`、生成配置、种子、生成器版本及文件校验值；预测与报告放 `outputs/<experiment_id>/simulation/<dataset_id>/`。所有候选使用相同输入，模拟成绩与真实比赛成绩分开记录。详见 [simulation/README.md](../simulation/README.md)。
+- 实验跑完后**不修改** `config.yaml`；改算法或参数就新建实验，保证每条结果可追溯。
+- 结果数字写进 `NOTES.md`，这是团队对比结果的唯一记录。跨实验的数据认知汇总到 [docs/FINDINGS.md](../docs/FINDINGS.md)。
+- 每人只修改自己创建的实验目录。
+- 公平比较使用同一份固定测试集：先生成数据，再运行所有候选。修改生成逻辑、场景或种子时，用新的 `dataset_id` 重新生成，所有候选重跑。
+- 开发集与最终检查集使用不重叠的种子；最终检查只跑一次，结果不再用于调参。重复运行同一数据和确定性算法只检查复现，不算新的验证证据。
+- 模拟成绩与真实比赛成绩分开记录；公开五分钟答案和评分不能用于选择算法或参数（见 [AGENTS.md](../AGENTS.md)）。
+
+## NOTES.md 记什么
+
+- 目的、算法及参数、代码版本（提交号）。
+- 模拟实验：`dataset_id`、生成命令、子型、种子；预测与报告在 `outputs/<experiment_id>/simulation/<dataset_id>/`。
+- 结果：分子型或分场景的指标、错误帧位置；真实比赛只记格式校验和输出诊断。
+- 结论依赖的假设、限制，以及什么情况下需要重新评估。
+
+固定种子只是复现条件之一，不保证跨代码或依赖版本生成相同数据；重建后不一致时保留旧数据并调查差异。
+
+## 访问边界
+
+算法只接收观测数据，正确答案只交给评分程序。目录划分、Git 忽略和 `AGENTS.md` 是协作约定，
+不是读取权限隔离；当前项目没有强制隔离，不把它描述成已有能力。

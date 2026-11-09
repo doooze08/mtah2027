@@ -1,28 +1,13 @@
 # 模拟测试
 
-模拟算法输入与真实 tactical ATD 共用格式和唯一入口，决策见 [ADR-001](../docs/ADR-001-ATD-OBSERVATIONS.md)。
-当前生成无观测缺陷的剧本：不加缺球、噪声、追踪丢失或槽位交换。模拟成绩不代表真实比赛成绩。
-当前实现 TI01、HD01、基础控球 BP01–BP03、长传落点 LC01–LC05、盘带擦碰 DC01–DC03，
-共 13 个子型（各含主客互换版本）。角落场景规格见
-[CLEAN_CORNER_CASES_V1.md](scenarios/CLEAN_CORNER_CASES_V1.md)，基础控球规格、限制与运行命令见
-[BASIC_POSSESSION.md](scenarios/BASIC_POSSESSION.md)。
-地滚球、停球、弹跳与可选背景跟随的接口及对照示例见 [MOTION.md](MOTION.md)。
-LC/DC 默认启用背景跟随；BP 与新增剧本按故事抽取运动参数，TI01/HD01 保持旧行为。
-验收结果及查看器抽查记录保存在 [PR #11](https://github.com/doooze08/mtah2027/pull/11) 描述中。
+模拟算法输入与真实 tactical ATD 共用格式和唯一入口，决策见 [ADR-001](../docs/decisions/ADR-001-ATD-OBSERVATIONS.md)。
+当前观测层不加缺陷（缺球、噪声、追踪丢失、槽位交换）。模拟成绩不代表真实比赛成绩。
 
-只生成和查看新增场景，不运行算法：
-
-```bash
-.venv/bin/python -m simulation.generate \
-  --dataset-id lc_dc_acceptance_20261108 --subtypes LC01,LC02,LC03,LC04,LC05,DC01,DC02,DC03 \
-  --stories 10 --seed 0
-.venv/bin/python -m simulation.generate \
-  --dataset-id lc_dc_preview_20261108 --subtypes LC01,LC02,LC03,LC04,LC05,DC01,DC02,DC03 \
-  --stories 1 --seed 0
-.venv/bin/python -m simulation.view --dataset lc_dc_preview_20261108 --experiment lc_dc_visual_review
-```
-
-上述编号已存在时换新编号；查看器无预测时显示“无预测”。
+| 文档 | 内容 |
+|---|---|
+| 本文 | 流程、运行命令、文件布局、代码索引 |
+| [scenarios/SCENARIOS.md](scenarios/SCENARIOS.md) | 全部场景族的规格和实现状态（当前 13 个子型已实现） |
+| [MOTION.md](MOTION.md) | 运动积木的用法和物理参数依据 |
 
 ## 流程：三层分开
 
@@ -41,21 +26,20 @@ LC/DC 默认启用背景跟随；BP 与新增剧本按故事抽取运动参数�
 从仓库根目录执行，使用已有 `.venv`（需要 numpy、pandas、PyYAML）：
 
 ```bash
-# 1. 新编号生成数据集并自检；不覆盖已有编号
+# 1. 新编号生成数据集并自检；不覆盖已有编号。--stories 每子型故事数，--seed 起始种子
 .venv/bin/python -m simulation.generate \
-  --dataset-id atd_interface_smoke_20261107 --subtypes TI01,HD01
+  --dataset-id <dataset_id> --subtypes TI01,HD01,BP01 --stories 5 --seed 0
 
-# 2. 用全部输出 X 的占位算法检查预测和模拟评分链路
-bash scripts/run_simulation.sh 20261107_placeholder_atd_interface atd_interface_smoke_20261107
+# 2. 运行实验配置里的算法并逐片段评分（例如占位算法 20261107_placeholder_atd_interface）
+bash scripts/run_simulation.sh <experiment_id> <dataset_id>
 
 # 3. 导出现有轨迹、答案与预测，不重新生成或运行算法
-.venv/bin/python -m simulation.view \
-  --dataset atd_interface_smoke_20261107 --experiment 20261107_placeholder_atd_interface
+.venv/bin/python -m simulation.view --dataset <dataset_id> --experiment <experiment_id>
 ```
 
-上述编号已存在时，新建 dataset id，替换所有命令中的数据集编号，不覆盖原目录。
+编号已存在时生成会拒绝写入；换新编号，不覆盖原目录。
 旧长表数据集不供新入口运行，需要按新编号重新生成；查看器也不兼容旧数据。
-占位算法的全部 X 会使准确性检查失败，这是预期；只验收文件、格式和运行链路。
+占位算法全部输出 X，准确性检查失败是预期的，只用来检查运行链路。
 
 导出的 `viewer.html` 在对应结果目录，双击即可打开。页面包含全部数据，无需服务器或网络。
 可选择片段、播放／暂停、拖动时间轴、输入帧号或逐帧查看；空格播放，左右键步进。
@@ -105,13 +89,14 @@ clip 是按种子打乱的不透明编号 c001…；故事、种子、主客互�
 
 | 位置 | 作用 |
 |---|---|
-| `scenarios/<族>.py` | 场景剧本，导出 FAMILY 和 SUBTYPES |
+| `scenarios/<族>.py` | 场景剧本，导出 FAMILY 和 SUBTYPES；`scenarios/_motion.py` 为按故事抽样的运动参数 |
 | `core/clip.py` | 完整世界和事件生成工具 |
 | `core/motion.py` | 球员和球的连续轨迹 |
 | `core/events.py` | 事件与唯一答案推导 |
 | `core/checks.py` | 场景自检 |
 | `core/observe.py` | 完整世界投影为 ATD 宽表；不加观测缺陷 |
 | `core/io.py` | 算法与评分分开读取 |
+| `examples/` | 运动积木的对照示例入口，不进场景自动发现 |
 | `generate.py` | 生成数据集、自检和记录版本 |
 | `run_algorithm.py` | 模拟和真实 tactical 均调用 predict(observations, metadata, config) |
 | `evaluate.py` | 仅对模拟答案逐片段评分 |
@@ -119,7 +104,6 @@ clip 是按种子打乱的不透明编号 c001…；故事、种子、主客互�
 | `../observations/` | 共同结构校验与真实 tactical ATD 加载器 |
 
 算法接入模板：[algorithms/_template/predict.py](../algorithms/_template/predict.py)。
-`nearest_player` 已停用；本次不修改历史实验。
 
 ## 两条红线
 
