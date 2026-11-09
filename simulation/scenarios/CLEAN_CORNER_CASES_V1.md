@@ -1,7 +1,8 @@
 > 算法可见输入以 [ADR-001：统一 ATD 观测接口](../../docs/ADR-001-ATD-OBSERVATIONS.md) 为准；下文保留原 V1 完整世界规格。
 # 干净输入下的控球 corner cases：V1 场景规格
 
-状态：供实现与评审使用的第一版规格；尚未生成数据或运行算法。
+状态：V1 场景规格。已实现 TI01、HD01、LC01–LC05、DC01–DC03；其余子型待实现。
+实现范围与验证记录见 [simulation/README.md](../README.md)。
 
 ## 1. 这份文档解决什么问题
 

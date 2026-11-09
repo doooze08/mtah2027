@@ -13,6 +13,28 @@ from simulation.scenarios import all_subtypes
 
 
 class BounceTests(unittest.TestCase):
+    def test_separate_first_impact_retention_and_rolling_reception(self):
+        b = ClipBuilder(np.random.default_rng(3), "H")
+        receiver = b.player("atk", "ls")
+        b.place_ball(b.player("atk", "lcb"))
+        b.bounce_to(2, point=(52, 42), bounces=2,
+                    first_horizontal_retention=0.6, horizontal_retention=0.9,
+                    roll_seconds=0.2)
+        flight, bounce = b._ball_segments[-2:]
+        vx = flight.velocity(bounce.t0)[0]
+        np.testing.assert_allclose([v[0] for v in bounce.hop_velocities],
+                                   [vx * 0.6, vx * 0.6 * 0.9])
+        self.assertAlmostEqual(bounce.velocity(bounce.roll_start)[0], vx * 0.6 * 0.9 ** 2)
+        self.assertAlmostEqual(b.now, bounce.roll_start + 0.2)
+        before = bounce.position(b.now)
+        b.start_at(receiver, before[:2])
+        velocity = bounce.velocity(b.now)[:2]
+        b.trap(receiver, 0.2)
+        trap = b._ball_segments[-1]
+        np.testing.assert_allclose(trap.position(trap.t0), before)
+        np.testing.assert_allclose(trap.velocity(trap.t0), velocity)
+        self.assertIn(trap.t0, b._contacts)
+
     def test_initial_flight_is_unchanged_and_joins_the_first_rebound(self):
         b = ClipBuilder(np.random.default_rng(3), "H")
         b.place_ball(b.player("atk", "lcb"))

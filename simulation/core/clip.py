@@ -228,21 +228,46 @@ class ClipBuilder:
 
     def bounce_to(self, seconds: float, point, restitution: float = 0.55,
                   bounces: int = 3, deceleration: float = 2.0,
-                  horizontal_retention: float = 0.75) -> float:
-        """Kick to a ground landing, rebound, then roll to rest; return the stop time.
+                  horizontal_retention: float = 0.75,
+                  first_horizontal_retention: Optional[float] = None,
+                  roll_seconds: Optional[float] = None) -> float:
+        """Kick, rebound, then roll; return the natural stop or requested rolling end time.
 
         seconds specifies only the initial flight. Ground impacts are self-check
         metadata, never player contacts or possession events. kick_to is unchanged.
+        roll_seconds ends after the last rebound so a script can stage a moving reception.
+        Omitting both new options preserves the original trajectory and clock behavior.
         """
         self.kick_to(seconds, point=point, height=BALL_RADIUS, arrival_contact=False)
         flight = self._ball_segments[-1]
         landing = self.ball_position(self.now)
         bounce = BouncingBall(self.now, landing[:2], flight.velocity(self.now),
-                              restitution, bounces, deceleration, horizontal_retention)
+                              restitution, bounces, deceleration, horizontal_retention,
+                              first_horizontal_retention)
+        if roll_seconds is not None:
+            if not 0 <= roll_seconds <= bounce.stop_time - bounce.roll_start:
+                raise ValueError("roll_seconds must end between rolling start and natural stop")
+            bounce.t1 = bounce.roll_start + roll_seconds
         self._ball_segments.append(bounce)
         self._ground_impacts.extend(bounce.ground_impacts)
-        self.now = bounce.stop_time
+        self.now = bounce.t1
         return self.now
+
+    def deflect_to(self, player: PlayerTrack, seconds: float, point,
+                   deceleration: float = 2.0, arrival_contact: bool = True):
+        """A passive foot/leg contact changes a ground ball's direction, never its truth.
+
+        The script declares incidental_touch separately. No collision can add speed.
+        """
+        incoming = self._segment_at(self.now)
+        if self.distance_to_ball(player, self.now) > 1.0:
+            raise ValueError("deflecting player must be within 1 m of the ball")
+        start = self.ball_position(self.now)
+        outgoing = GroundRoll(self.now, self.now + seconds, start[:2], tuple(point), deceleration)
+        if outgoing.initial_speed > math.hypot(*incoming.velocity(self.now)[:2]) + 1e-8:
+            raise ValueError("passive deflection cannot increase ball speed")
+        return self.roll_to(seconds, point=point, deceleration=deceleration,
+                            arrival_contact=arrival_contact)
 
     def trap(self, player: PlayerTrack, seconds: float):
         """Cushion a rolling ball at the feet, then hold it still at its final offset.
@@ -251,12 +276,15 @@ class ClipBuilder:
         script emits control_start BEFORE this action, at the actual reception time.
         """
         incoming = self._segment_at(self.now)
-        if not isinstance(incoming, GroundRoll):
+        if not (isinstance(incoming, GroundRoll) or
+                isinstance(incoming, BouncingBall) and self.now >= incoming.roll_start):
             raise ValueError("trap requires an incoming ground roll")
         if not 0.1 <= seconds <= 0.3:
             raise ValueError("trap duration must be 0.1-0.3 seconds")
         start = self.ball_position(self.now)
-        velocity = incoming.velocity(self.now)
+        velocity = incoming.velocity(self.now)[:2]
+        if isinstance(incoming, BouncingBall):
+            self._contacts.append(self.now)
         speed = math.hypot(*velocity)
         if not 0.3 - 1e-9 <= speed * seconds / 2 <= 1.0 + 1e-9:
             raise ValueError("trap distance must be 0.3-1 m; choose duration for arrival speed")

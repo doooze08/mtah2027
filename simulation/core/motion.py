@@ -11,7 +11,7 @@ attacks towards +x. The builder rotates the whole clip afterwards for the swappe
 
 import math
 from dataclasses import dataclass, field
-from typing import Callable, List, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 
@@ -256,8 +256,9 @@ class GroundTrap:
 class BouncingBall:
     """Damped vertical hops after impact, followed by the existing ground-roll model.
 
-    Each ground impact scales horizontal velocity by horizontal_retention, while
-    vertical rebound speed uses restitution. Ground collisions are not player contacts.
+    The optional first_horizontal_retention overrides only the first ground impulse.
+    Later impacts use horizontal_retention; vertical speed uses restitution.
+    Ground collisions are not player contacts.
     """
     t0: float
     p0: Point2
@@ -266,6 +267,7 @@ class BouncingBall:
     bounces: int = 3
     deceleration: float = 2.0
     horizontal_retention: float = 0.75
+    first_horizontal_retention: Optional[float] = None
     hops: list = field(init=False, default_factory=list)
     hop_positions: list = field(init=False, default_factory=list)
     hop_velocities: list = field(init=False, default_factory=list)
@@ -281,14 +283,19 @@ class BouncingBall:
             raise ValueError("bouncing needs 0 < restitution < 1 and at least one rebound")
         if not 0 <= self.horizontal_retention <= 1:
             raise ValueError("horizontal_retention must be between 0 and 1")
+        first = (self.horizontal_retention if self.first_horizontal_retention is None
+                 else self.first_horizontal_retention)
+        if not 0 <= first <= 1:
+            raise ValueError("first_horizontal_retention must be between 0 and 1")
         time = self.t0
         x, y = self.p0
         vx, vy = self.incoming_velocity[:2]
         vz = abs(self.incoming_velocity[2]) * self.restitution
         self.ground_impacts.append(time)
-        for _ in range(self.bounces):
-            vx *= self.horizontal_retention
-            vy *= self.horizontal_retention
+        for index in range(self.bounces):
+            retention = first if index == 0 else self.horizontal_retention
+            vx *= retention
+            vy *= retention
             duration = 2 * vz / GRAVITY
             self.hops.append((time, time + duration, vz))
             self.hop_positions.append((x, y))
