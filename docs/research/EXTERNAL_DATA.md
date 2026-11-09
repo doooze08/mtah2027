@@ -15,12 +15,12 @@
 
 ### 1.1 官方 H/A/D 的含义
 
-根目录 [CHALLENGE.md](../CHALLENGE.md) 和 [EVALUATION.md](../EVALUATION.md) 的定义：
+根目录 [CHALLENGE.md](../../CHALLENGE.md) 和 [EVALUATION.md](../../EVALUATION.md) 的定义：
 
 - `H`：主队活球控球；`A`：客队活球控球；`D`：死球；`X`：放弃判断。
 - 活球时，争抢和松散球保留上一支实际控制球队；不能把“最近球员”直接等同于控制权。
 - 一个 possession 是同一球队 `H/A` 的最大连续段；`D` 是停表，不是 possession。
-- 官方标签由 corrected tracking 机械导出：corrected tracking 标为 ball dead 的帧是 `D`，否则取 tracking 指定的控球球队（[CHALLENGE.md](../CHALLENGE.md) 的 “The ground truth is derived from corrected tracking data” 一段）。
+- 官方标签由 corrected tracking 机械导出：corrected tracking 标为 ball dead 的帧是 `D`，否则取 tracking 指定的控球球队（[CHALLENGE.md](../../CHALLENGE.md) 的 “The ground truth is derived from corrected tracking data” 一段）。
 - `X` 是“不回答”，不是第四种比赛状态；外部数据没有 abstention 标签，因此**无法从任何外部数据推导 `X`**。
 
 这决定了外部数据的上限：即使供应商有 `possession` 或 `ball_state`，它也不是官方 corrected tracking 的 dead/owning 字段。两者可能接近，但不能假定等价。
@@ -32,7 +32,7 @@
 - **公开可得**：无需私人关系即可下载，或至少可通过公开、免费的注册/申请表获取。
 - **许可允许**：有明确条款允许比赛用途、研究/评估用途，并允许组织方检查和复现。
 
-“组织方可获取”按 [RULES.md](../RULES.md) 的“organisers can access and inspect”理解；仅有公开博客介绍、但没有可下载数据或可核实的许可，不算满足。
+“组织方可获取”按 [RULES.md](../../RULES.md) 的“organisers can access and inspect”理解；仅有公开博客介绍、但没有可下载数据或可核实的许可，不算满足。
 
 ### 1.3 什么是“真实测试集”
 
@@ -87,7 +87,7 @@ Game 1/2 的 CSV 每队有 14 个 player 列，但每帧只有 11 个有限位�
 - `ball_state` 全部为 `None`；`ball_owning_team_id` 全部为 `None`。
 - 35 个球员的 `_s`（速度）和 `_d`（距离）全部为空。也就是说，Metrica EPTS 只有位置，没有本场 ATD 那样的速度列；速度必须由位置差分。
 
-Game 1/2 的 CSV 同样没有 z、没有速度；球缺失约四成。三场的球缺失为 32–41%，与本场 ATD 的 43.06% 总量、41% graded 同一量级；Game 1/2 接近本场，Game 3 略低（[DATA.md](../DATA.md)）。所以**在“球经常缺失”这一点上比 SkillCorner 更接近本场难度**。
+Game 1/2 的 CSV 同样没有 z、没有速度；球缺失约四成。三场的球缺失为 32–41%，与本场 ATD 的 43.06% 总量、41% graded 同一量级；Game 1/2 接近本场，Game 3 略低（[DATA.md](../../DATA.md)）。所以**在“球经常缺失”这一点上比 SkillCorner 更接近本场难度**。
 
 ### 3.4 事件数据
 
@@ -246,7 +246,7 @@ SkillCorner 不是传统的 Opta/StatsBomb 事件流。它提供：
 
 注：phase 并集 35,826 中有 9 帧属于跨半场 phase（`period` 为空），所以按 period 1/2 的补集是 25,465，而 61,282−35,826=25,456；差 9 帧是 period 空值。这个跨半场 phase 本身也说明 phase 边界不能直接当官方半场边界。
 
-官方公开样例是 5 分钟 17 个 possession、平均 14.2 s（[DATA.md](../DATA.md)）。SkillCorner 的 phase 平均 13.94 s 更接近这个尺度，possession 平均 10.62 s 更碎；但这只是量级对照，不能证明哪一种更接近官方标签。**结论：SkillCorner 可以生成“弱 H/A/D”，phase 版本比 possession 版本更适合做 possession 段；但 14.8% 的球队不一致、1,461 个 phase 内无 possession、1,013 帧 phase 外有球+球员，说明它不是官方真值。**
+官方公开样例是 5 分钟 17 个 possession、平均 14.2 s（[DATA.md](../../DATA.md)）。SkillCorner 的 phase 平均 13.94 s 更接近这个尺度，possession 平均 10.62 s 更碎；但这只是量级对照，不能证明哪一种更接近官方标签。**结论：SkillCorner 可以生成“弱 H/A/D”，phase 版本比 possession 版本更适合做 possession 段；但 14.8% 的球队不一致、1,461 个 phase 内无 possession、1,013 帧 phase 外有球+球员，说明它不是官方真值。**
 
 ### 4.6 转成 ATD 宽表的难点
 

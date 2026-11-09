@@ -6,4 +6,4 @@
 
 当前仅保留统一签名的报错入口，阻止旧实验静默运行。历史实现可由 Git 历史检索。
 本次没有把它迁移成新的控球算法；端到端格式冒烟测试改用 `placeholder`。
-依据见 [ADR-001](../../docs/ADR-001-ATD-OBSERVATIONS.md)。
+依据见 [ADR-001](../../docs/decisions/ADR-001-ATD-OBSERVATIONS.md)。
