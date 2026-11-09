@@ -22,6 +22,7 @@ from simulation.core import ClipBuilder, checks, io
 from simulation.core import events as ev
 from simulation.core.constants import AWAY, HOME
 from simulation.core.observe import observe
+from simulation.core.gaps import BallGapConfig, ball_gap_mask
 from simulation.scenarios import all_subtypes
 
 
@@ -64,12 +65,12 @@ def assign_clip_ids(built, base_seed):
     return sorted(built, key=lambda item: item["clip_id"])
 
 
-def tables(built):
+def tables(built, gaps=None):
     """Build algorithm observations separately from answers and debug-only clean positions."""
     observations, metadata, truth, events, samples, clean = [], {}, [], [], [], []
     for item in built:
         clip, clip_id = item["clip"], item["clip_id"]
-        obs, meta = observe(clip, seed=item["seed"])
+        obs, meta = observe(clip, seed=item["seed"], gaps=gaps)
         observations.append(obs.assign(clip=clip_id))
         metadata[clip_id] = meta
         clean.append(clip.frames.assign(clip=clip_id))
@@ -103,7 +104,7 @@ def verify_written(directory):
     return problems
 
 
-def write_manifest(directory, args):
+def write_manifest(directory, args, gaps=None, built=()):
     def git(*command):
         try:
             return subprocess.check_output(["git"] + list(command), cwd=io.REPO_ROOT,
@@ -126,6 +127,12 @@ def write_manifest(directory, args):
         "pandas": pd.__version__,
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
+    if gaps is not None:
+        manifest["observation_layer"] = "atd_format_v2_optional_ball_gaps"
+        manifest["ball_gaps"] = gaps.manifest()
+        manifest["ball_gaps"]["dead_intervals"] = {
+            item["clip_id"]: ball_gap_mask(item["clip"], item["seed"], gaps)[1]
+            for item in built}
     with open(os.path.join(directory, io.MANIFEST_FILE), "w") as handle:
         json.dump(manifest, handle, indent=2)
 
@@ -136,8 +143,17 @@ def main():
     parser.add_argument("--subtypes", required=True, help="comma-separated, e.g. TI01,HD01")
     parser.add_argument("--stories", type=int, default=1, help="stories per subtype")
     parser.add_argument("--seed", type=int, default=0, help="base seed; story k uses seed + k")
+    parser.add_argument("--dead-ball-gaps", action="store_true", help="enable ball-only gaps")
+    parser.add_argument("--dead-ball-gap-weights", nargs=3, type=float, default=(1, 1, 1),
+                        metavar=("WHOLE", "DELAYED", "VISIBLE"), help="relative policy weights")
+    parser.add_argument("--dead-ball-delay-range", nargs=2, type=float, default=(2, 5),
+                        metavar=("MIN", "MAX"), help="delayed-policy delay in seconds")
+    parser.add_argument("--live-ball-gap-rate", type=float, default=13 / 5400,
+                        help="short gaps per live second; 0 disables them")
     args = parser.parse_args()
     args.subtypes = [s.strip() for s in args.subtypes.split(",") if s.strip()]
+    gaps = (BallGapConfig(tuple(args.dead_ball_gap_weights), tuple(args.dead_ball_delay_range),
+                          args.live_ball_gap_rate) if args.dead_ball_gaps else None)
 
     directory = io.dataset_dir(args.dataset_id)
     if os.path.exists(directory):
@@ -158,11 +174,11 @@ def main():
     if failed:
         raise SystemExit("self-check failed; nothing written")
 
-    io.write_dataset(directory, *tables(built))
+    io.write_dataset(directory, *tables(built, gaps=gaps))
     problems = verify_written(directory)
     if problems:
         raise SystemExit("\n".join(problems))
-    write_manifest(directory, args)
+    write_manifest(directory, args, gaps, built)
     print("wrote {} clips to {}".format(len(built), os.path.relpath(directory, io.REPO_ROOT)))
 
 
