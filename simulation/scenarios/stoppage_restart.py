@@ -9,14 +9,21 @@ from simulation.scenarios._motion import StoryMotion
 FAMILY = "stoppage_restart"
 
 
-def _start(b, rng, point):
+def _start(b, rng, point, motion):
     b.follow_ball = True
     holder = b.player("atk", "rs")
+    passer = b.player("atk", "rcb")
     b.start_at(holder, point)
-    b.place_ball(holder, in_front=0)
+    b.start_at(passer, (point[0] - 14, point[1]))
+    b.place_ball(passer, in_front=0)
     b.begin_core()
-    b.hold(holder, rng.uniform(0.8, 1.5), still=True)
+    b.hold(passer, rng.uniform(0.8, 1.5), still=True)
     b.event("legal_restart", team="atk")
+    arrival_speed = rng.uniform(9, 10)
+    b.roll_to(player=holder, arrival_speed=arrival_speed, deceleration=motion.deceleration)
+    b.event("control_start", team="atk")
+    b.trap(holder, motion.trap_seconds(arrival_speed))
+    b.hold(holder, 1.0, still=True)
     # Let the local still-to-sway blend finish before any scripted run.
     b.wait(0.6)
     return holder
@@ -71,7 +78,7 @@ def _ground_restart(b, rng, taker, receiver, motion):
 def build_st01(b, rng):
     """Foul: the whistle can interrupt a fast in-field pass; atk retrieves and restarts."""
     motion = StoryMotion.sample(rng)
-    holder = _start(b, rng, (43, rng.uniform(28, 40)))
+    holder = _start(b, rng, (43, rng.uniform(28, 40)), motion)
     marker = b.player("dfn", "lcm")
     b.start_at(marker, (44, holder.start[1] + 0.7))
     if rng.random() < 0.5:
@@ -100,7 +107,7 @@ def build_st02(b, rng):
     """A slow touchline exit, retrieval, and a long wait for the opponent's throw-in."""
     motion = StoryMotion.sample(rng)
     x = rng.uniform(40, 60)
-    holder = _start(b, rng, (x, PITCH_WIDTH - 4))
+    holder = _start(b, rng, (x, PITCH_WIDTH - 4), motion)
     release = b.now
     b.dribble(holder, (x, PITCH_WIDTH + 0.3), 3.5, settle=1.0)
     dead_at = b.time_ball_leaves_pitch(release, b.now)
@@ -132,7 +139,7 @@ def build_st02(b, rng):
 def _shot_out(b, rng, goal):
     motion = StoryMotion.sample(rng)
     y = PITCH_WIDTH / 2 if goal else rng.uniform(45, 49)
-    holder = _start(b, rng, (rng.uniform(93, 97), y))
+    holder = _start(b, rng, (rng.uniform(93, 97), y), motion)
     release = b.now
     b.roll_to(point=(PITCH_LENGTH + 0.65, y), arrival_speed=0,
               deceleration=motion.deceleration, arrival_contact=False)

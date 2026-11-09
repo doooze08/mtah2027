@@ -92,10 +92,11 @@ class StoppageStoryTests(unittest.TestCase):
                         self.assertGreaterEqual(duration, 30 if subtype == "ST04" else 5)
                         self.assertLessEqual(duration, 90 if subtype == "ST04" else 30)
                         dt = 0.001
-                        speed = np.linalg.norm(np.subtract(clip.ball_at(restart.t + dt)[:2],
-                                                          clip.ball_at(restart.t)[:2])) / dt
-                        self.assertGreaterEqual(speed, 10 - 0.01)
-                        self.assertLessEqual(speed, 25 + 0.01)
+                        for kick in (e for e in clip.events if e.kind == "legal_restart"):
+                            speed = np.linalg.norm(np.subtract(clip.ball_at(kick.t + dt)[:2],
+                                                              clip.ball_at(kick.t)[:2])) / dt
+                            self.assertGreaterEqual(speed, 10 - 0.01)
+                            self.assertLessEqual(speed, 25 + 0.01)
                         if subtype == "ST01":
                             speed = np.linalg.norm(np.subtract(clip.ball_at(dead.t + dt)[:2],
                                                               clip.ball_at(dead.t)[:2])) / dt
