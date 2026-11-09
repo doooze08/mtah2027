@@ -32,7 +32,7 @@ def _receive(b, rng, motion, receiver, speed):
     point = b.ball_position(b.now)[:2]
     arrive(b, receiver, point, b.now)
     b.event("control_start", team=receiver.team)
-    motion.cushion(b, rng, receiver, speed)
+    b.trap(receiver, motion.trap_seconds(speed))
     carry_tail(b, rng, receiver)
 
 

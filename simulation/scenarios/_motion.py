@@ -10,7 +10,7 @@ class StoryMotion:
     first_retention: float
     later_retention: float
     arrival_speed: float
-    trap_seconds: float
+    trap_fraction: float
 
     @classmethod
     def sample(cls, rng):
@@ -19,13 +19,13 @@ class StoryMotion:
         first = rng.uniform(0.55, 0.7)
         later = rng.uniform(0.85, 1.0)
         speed = rng.uniform(3.0, 10.0)
-        seconds = rng.uniform(max(0.1, 0.6 / speed), min(0.3, 1.9 / speed))
-        return cls(deceleration, restitution, first, later, speed, seconds)
+        return cls(deceleration, restitution, first, later, speed, rng.random())
 
-    def cushion(self, b, rng, player, speed):
-        """Match a rolling reception to the 0.3-0.95 m foot cushioning distance."""
-        seconds = rng.uniform(max(0.1, 0.6 / speed), min(0.3, 1.9 / speed))
-        b.trap(player, seconds)
+    def trap_seconds(self, speed=None, max_distance=0.95):
+        """Reuse one story draw inside the feasible interval for the actual arrival speed."""
+        speed = self.arrival_speed if speed is None else speed
+        low, high = max(0.1, 0.6 / speed), min(0.3, 2 * max_distance / speed)
+        return low + self.trap_fraction * (high - low)
 
 
 def open_play(b, rng, motion):
@@ -41,7 +41,7 @@ def open_play(b, rng, motion):
     b.roll_to(player=holder, arrival_speed=motion.arrival_speed,
               deceleration=motion.deceleration)
     b.event("control_start", team="atk")
-    b.trap(holder, motion.trap_seconds)
+    b.trap(holder, motion.trap_seconds())
     b.hold(holder, rng.uniform(2, 3), still=True)
     b.begin_core()
     return holder

@@ -8,7 +8,7 @@
 [BASIC_POSSESSION.md](scenarios/BASIC_POSSESSION.md)。
 地滚球、停球、弹跳与可选背景跟随的接口及对照示例见 [MOTION.md](MOTION.md)。
 LC/DC 默认启用背景跟随；BP 与新增剧本按故事抽取运动参数，TI01/HD01 保持旧行为。
-验收结果及 8 个子型的查看器抽查记录见 [本轮验证记录](../docs/SIMULATION-LC-DC-VALIDATION.md)。
+验收结果及查看器抽查记录保存在 [PR #11](https://github.com/doooze08/mtah2027/pull/11) 描述中。
 
 只生成和查看新增场景，不运行算法：
 

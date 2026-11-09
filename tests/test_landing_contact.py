@@ -8,6 +8,32 @@ from simulation.core import ClipBuilder, checks
 from simulation.core.constants import FPS, PITCH_LENGTH, PITCH_WIDTH
 from simulation.core.motion import BallFlight, BouncingBall, GroundTrap
 from simulation.scenarios import all_subtypes
+from simulation.scenarios._motion import StoryMotion
+from simulation.generate import build_clips
+
+
+class MotionParameterTests(unittest.TestCase):
+    def test_trap_timing_reuses_one_draw_at_the_actual_arrival_speed(self):
+        rng = np.random.default_rng(27)
+        motion = StoryMotion.sample(rng)
+        state = rng.bit_generator.state
+        for speed in (3.0, 6.0, 10.0):
+            seconds = motion.trap_seconds(speed)
+            self.assertTrue(0.1 <= seconds <= 0.3)
+            self.assertTrue(0.3 <= speed * seconds / 2 <= 0.95)
+            self.assertEqual(seconds, motion.trap_seconds(speed))
+        self.assertEqual(motion.trap_seconds(), motion.trap_seconds(motion.arrival_speed))
+        self.assertLessEqual(6 * motion.trap_seconds(6, max_distance=0.6) / 2, 0.6)
+        self.assertEqual(state, rng.bit_generator.state)
+
+    def test_carries_after_static_holds_respect_motion_limits(self):
+        for subtype in ("DC01", "DC02", "DC03", "BP02"):
+            seeds = (30, 198) if subtype == "BP02" else (26, 27, 173, 195)
+            for seed in seeds:
+                for item in build_clips([subtype], 1, seed):
+                    with self.subTest(subtype=subtype, seed=seed,
+                                      team=item["initiating_team"]):
+                        self.assertEqual(checks.run_all(item["clip"]), [])
 
 
 class LandingTests(unittest.TestCase):

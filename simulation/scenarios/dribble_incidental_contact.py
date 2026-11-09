@@ -9,6 +9,8 @@ FAMILY = "dribble_incidental_contact"
 
 def _approach(b, rng, holder):
     """A 2-6 m/s dribble, followed by the last forward touch towards a defender's leg."""
+    # Let the 0.6 s idle-sway restoration finish before adding running acceleration.
+    b.wait(0.6)
     x, y = holder.anchor(b.now)
     seconds = rng.uniform(2.0, 2.4)
     peak = rng.uniform(2.5, 5.5)
@@ -35,7 +37,10 @@ def build_dc01(b, rng):
     b.event("incidental_touch", team="dfn")
     b.deflect_to(defender, seconds, target, deceleration=motion.deceleration)
     b.event("control_start", team="atk")
-    motion.cushion(b, rng, holder, speed)
+    # The holder sways while the loose ball returns. Budget that offset as well
+    # as the cushioning travel, so the stopped ball remains within foot reach.
+    max_distance = 0.95 - b.distance_to_ball(holder, b.now)
+    b.trap(holder, motion.trap_seconds(speed, max_distance=max_distance))
     carry_tail(b, rng, holder)
     b.expect("D", "atk")
 
@@ -72,7 +77,7 @@ def build_dc02(b, rng):
              arrive_at=b.now + 0.8, seconds=chase + 0.8)
     b.event("control_start", team="atk")
     speed = distance / chase - 0.5 * motion.deceleration * chase
-    motion.cushion(b, rng, holder, speed)
+    b.trap(holder, motion.trap_seconds(speed))
     carry_tail(b, rng, holder)
     b.expect("D", "atk")
 
@@ -98,7 +103,7 @@ def build_dc03(b, rng):
     b.event("incidental_touch", team="dfn")
     b.deflect_to(first, seconds, target, deceleration=motion.deceleration)
     b.event("control_start", team="dfn")
-    motion.cushion(b, rng, second, speed)
+    b.trap(second, motion.trap_seconds(speed))
     carry_tail(b, rng, second)
     b.expect("D", "atk", "dfn")
 

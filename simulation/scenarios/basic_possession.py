@@ -12,7 +12,7 @@ def _receive(b, rng, receiver, motion):
     speed = motion.arrival_speed
     b.roll_to(player=receiver, arrival_speed=speed, deceleration=motion.deceleration)
     b.event("control_start", team=receiver.team)
-    b.trap(receiver, motion.trap_seconds)
+    b.trap(receiver, motion.trap_seconds())
 
 
 def _opening(b, rng, motion, near_touchline=False):
@@ -57,7 +57,7 @@ def build_bp01(b, rng):
         distance = b.distance_to_ball(partner, b.now) + 0.6
         pass_time = (math.sqrt(motion.arrival_speed ** 2 + 2 * motion.deceleration * distance)
                      - motion.arrival_speed) / motion.deceleration
-        if cycle >= 2 and b.now + pass_time + motion.trap_seconds + 3.0 + 2.0 > 20.0:
+        if cycle >= 2 and b.now + pass_time + motion.trap_seconds() + 3.0 + 2.0 > 20.0:
             break
         _receive(b, rng, partner, motion)
         holder, partner = partner, holder
@@ -84,8 +84,10 @@ def build_bp02(b, rng):
     b.run_to(opponent, intercept, arrive_at=b.now + 1.8, seconds=1.8)
     b.roll_to(player=opponent, arrival_speed=speed, deceleration=deceleration)
     b.event("control_start", team="dfn")
-    b.trap(opponent, motion.trap_seconds)
+    b.trap(opponent, motion.trap_seconds())
     b.hold(opponent, rng.uniform(0.5, 3.0), still=True)
+    # Separate idle-sway restoration from the 5 m carry's 6.17 m/s^2 acceleration.
+    b.wait(0.6)
     b.dribble(opponent, (intercept[0] - 4.0, intercept[1] - 3.0), 2.0, settle=1.0)
     _tail(b, opponent)
     b.expect("D", "atk", "dfn")
