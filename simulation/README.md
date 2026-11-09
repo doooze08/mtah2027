@@ -1,31 +1,13 @@
 # 模拟测试
 
-模拟算法输入与真实 tactical ATD 共用格式和唯一入口，决策见 [ADR-001](../docs/ADR-001-ATD-OBSERVATIONS.md)。
-默认生成无观测缺陷的剧本；可选加入球坐标缺失，不加球员漏检、噪声或槽位交换。模拟成绩不代表真实比赛成绩。
-当前实现 TI01、HD01、基础控球 BP01–BP03、长传落点 LC01–LC05、盘带擦碰 DC01–DC03，
-以及长停顿 ST01–ST04，共 17 个子型（各含主客互换版本）。角落场景规格见
-[CLEAN_CORNER_CASES_V1.md](scenarios/CLEAN_CORNER_CASES_V1.md)，基础控球规格、限制与运行命令见
-[BASIC_POSSESSION.md](scenarios/BASIC_POSSESSION.md)。
-地滚球、停球、弹跳与可选背景跟随的接口及对照示例见 [MOTION.md](MOTION.md)。
-LC/DC 默认启用背景跟随；BP 与新增剧本按故事抽取运动参数，TI01/HD01 保持旧行为。
-验收结果及查看器抽查记录保存在 [PR #11](https://github.com/doooze08/mtah2027/pull/11) 描述中。
-ST 故事、缺球参数和运行命令见 [长停顿与可选缺球](scenarios/STOPPAGE_RESTART.md)。
-`--dead-ball-gaps` 开启后，每段死球随机选择整段缺球、延迟数秒后缺球或全程可见，
-默认各约 1/3；这是模拟假设。缺球只改观测，不改答案。参数与抽样结果写入 manifest。
+模拟算法输入与真实 tactical ATD 共用格式和唯一入口，决策见 [ADR-001](../docs/decisions/ADR-001-ATD-OBSERVATIONS.md)。
+默认观测不加缺陷；可选加入球坐标缺失，不加球员漏检、噪声或槽位交换。模拟成绩不代表真实比赛成绩。
 
-只生成和查看新增场景，不运行算法：
-
-```bash
-.venv/bin/python -m simulation.generate \
-  --dataset-id lc_dc_acceptance_20261108 --subtypes LC01,LC02,LC03,LC04,LC05,DC01,DC02,DC03 \
-  --stories 10 --seed 0
-.venv/bin/python -m simulation.generate \
-  --dataset-id lc_dc_preview_20261108 --subtypes LC01,LC02,LC03,LC04,LC05,DC01,DC02,DC03 \
-  --stories 1 --seed 0
-.venv/bin/python -m simulation.view --dataset lc_dc_preview_20261108 --experiment lc_dc_visual_review
-```
-
-上述编号已存在时换新编号；查看器无预测时显示“无预测”。
+| 文档 | 内容 |
+|---|---|
+| 本文 | 流程、运行命令、文件布局、代码索引 |
+| [scenarios/SCENARIOS.md](scenarios/SCENARIOS.md) | 全部场景族的规格和实现状态（当前 17 个子型已实现） |
+| [MOTION.md](MOTION.md) | 运动积木的用法和物理参数依据 |
 
 ## 流程：三层分开
 
@@ -44,21 +26,20 @@ ST 故事、缺球参数和运行命令见 [长停顿与可选缺球](scenarios/
 从仓库根目录执行，使用已有 `.venv`（需要 numpy、pandas、PyYAML）：
 
 ```bash
-# 1. 新编号生成数据集并自检；不覆盖已有编号
+# 1. 新编号生成数据集并自检；不覆盖已有编号。--stories 每子型故事数，--seed 起始种子
 .venv/bin/python -m simulation.generate \
-  --dataset-id atd_interface_smoke_20261107 --subtypes TI01,HD01
+  --dataset-id <dataset_id> --subtypes TI01,HD01,BP01 --stories 5 --seed 0
 
-# 2. 用全部输出 X 的占位算法检查预测和模拟评分链路
-bash scripts/run_simulation.sh 20261107_placeholder_atd_interface atd_interface_smoke_20261107
+# 2. 运行实验配置里的算法并逐片段评分（例如占位算法 20261107_placeholder_atd_interface）
+bash scripts/run_simulation.sh <experiment_id> <dataset_id>
 
 # 3. 导出现有轨迹、答案与预测，不重新生成或运行算法
-.venv/bin/python -m simulation.view \
-  --dataset atd_interface_smoke_20261107 --experiment 20261107_placeholder_atd_interface
+.venv/bin/python -m simulation.view --dataset <dataset_id> --experiment <experiment_id>
 ```
 
-上述编号已存在时，新建 dataset id，替换所有命令中的数据集编号，不覆盖原目录。
+编号已存在时生成会拒绝写入；换新编号，不覆盖原目录。
 旧长表数据集不供新入口运行，需要按新编号重新生成；查看器也不兼容旧数据。
-占位算法的全部 X 会使准确性检查失败，这是预期；只验收文件、格式和运行链路。
+占位算法全部输出 X，准确性检查失败是预期的，只用来检查运行链路。
 
 导出的 `viewer.html` 在对应结果目录，双击即可打开。页面包含全部数据，无需服务器或网络。
 可选择片段、播放／暂停、拖动时间轴、输入帧号或逐帧查看；空格播放，左右键步进。
@@ -66,6 +47,62 @@ bash scripts/run_simulation.sh 20261107_placeholder_atd_interface atd_interface_
 球高度曲线标注“仅模拟剧本有，算法看不到”；同时显示答案、预测及可点击事件。
 缺少预测时显示灰色“无预测”；紫色色带标注缺球帧，并用紫色虚线球显示干净轨迹。
 数据格式或帧对齐错误抛异常。
+
+## 可选球坐标缺失
+
+ST01–ST04 的故事、正确答案和事件边界见 [场景规格 §12](scenarios/SCENARIOS.md#12-场景族八长停顿与重启)。
+“数据商会在部分死球期间移除球坐标”是模拟假设，不是官方说明。
+缺球默认关闭。开启后，仅将观测表的 `ball_x`、`ball_y` 一起置为 NaN；
+球员坐标和速度、干净轨迹、事件与正确答案均不变。算法元数据不含遮罩、策略或场景名。
+
+| 参数 | 默认值 | 含义 |
+|---|---|---|
+| `--dead-ball-gaps` | 关闭 | 开启死球策略与可选活球短缺 |
+| `--dead-ball-gap-weights WHOLE DELAYED VISIBLE` | 1 1 1 | 每段独立抽取整段缺球、延迟后缺球、全程可见的相对权重 |
+| `--dead-ball-delay-range MIN MAX` | 2 5 | 延迟策略额外等待的秒数，均匀抽样 |
+| `--live-ball-gap-rate RATE` | 13/5400 ≈ 0.002407 | 每活球秒的短缺发生率；0 关闭 |
+
+三种策略默认各约 1/3 **是假设**，不是从官方答案估计的比例。出界也允许全程可见。
+每段死球包括片段开头的等待，独立抽一次策略；整段策略允许 0–5 帧（0–0.2 s）起点抖动，
+延迟策略在此基础上加 2–5 s。第一帧恢复坐标为合法重启帧或其前一帧，等概率抽取；
+这是观测模拟抖动，不改变实际踢出／掷入的事件或答案边界。
+末尾未重启的死球不会提前恢复。延迟超过死球长度时，该段不产生缺球。
+
+```text
+真实状态  D 等待 │ H 活球 │ stoppage / ball_out ───── D ─────│ legal_restart → H/A
+整段缺球  NaN…   │ 有球   │ 0–0.2 s 后 NaN………………恢复 │ 有球
+延迟缺球  可见*  │ 有球   │ 先可见数秒，再 NaN………恢复 │ 有球
+全程可见  有球   │ 有球   │             始终有球           │ 有球
+```
+
+`*` 短于延迟的开头等待全程可见。死球时仍可能看见快球、捡球或摆球，
+因此不能把“缺球”和 D 当作完全相同的状态。
+
+活球短缺长度为 1–4 帧（0.04–0.16 s），按活球时间的指数等待抽样；
+前后各保留可见帧，不与死球缺球或另一短缺合并，不产生活球长缺球。
+发生率按活球时长计，不是每个片段强制插入一次。
+观测使用独立随机流，同故事镜像共享遮罩，不消耗剧本或槽位随机数。
+manifest 记录全部参数、随机流和各片段每段死球所选策略及遮罩边界，不供算法读取。
+
+生成并检查长停顿数据集，不运行算法：
+
+```bash
+.venv/bin/python -m simulation.generate \
+  --dataset-id <st_dataset_id> --subtypes ST01,ST02,ST03,ST04 \
+  --stories 50 --seed 0 --dead-ball-gaps
+.venv/bin/python -m experiments.20261108_ball_gaps.ball_gaps --dataset <st_dataset_id>
+.venv/bin/python -m simulation.view --dataset <st_dataset_id> --experiment <preview_id>
+```
+
+已有编号不覆盖。统计脚本只使用 `--dataset`，不使用 tactical 数据入口。
+每个子型 50 个种子、双镜像，共 400 片段，任一自检失败都会阻止整套写出。
+验收数字和查看器抽查记录保存在 [PR #14](https://github.com/doooze08/mtah2027/pull/14) 描述中。
+
+停顿密集片段的缺球率取决于场景比例、死球长度和策略权重，不代表整场比赛的缺球率。
+等量 ST04 会提高 >30 s 的段数占比；延迟策略可以产生短尾段。
+模拟始终有 22 名球员，没有球员漏检。重启前一帧恢复可使统计脚本的前向差分速度偏低；
+消失前球速取决于停顿原因，重现距离和位移取决于摆球位置和捡球路线。
+这些模型参数不是对本场比赛的拟合；不根据真实摘要选择种子或调整参数。
 
 ## 文件放置
 
@@ -109,13 +146,14 @@ clip 是按种子打乱的不透明编号 c001…；故事、种子、主客互�
 
 | 位置 | 作用 |
 |---|---|
-| `scenarios/<族>.py` | 场景剧本，导出 FAMILY 和 SUBTYPES |
+| `scenarios/<族>.py` | 场景剧本，导出 FAMILY 和 SUBTYPES；`scenarios/_motion.py` 为按故事抽样的运动参数 |
 | `core/clip.py` | 完整世界和事件生成工具 |
 | `core/motion.py` | 球员和球的连续轨迹 |
 | `core/events.py` | 事件与唯一答案推导 |
 | `core/checks.py` | 场景自检 |
 | `core/observe.py`、`core/gaps.py` | 完整世界投影为 ATD 宽表；可选球坐标缺失 |
 | `core/io.py` | 算法与评分分开读取 |
+| `examples/` | 运动积木的对照示例入口，不进场景自动发现 |
 | `generate.py` | 生成数据集、自检和记录版本 |
 | `run_algorithm.py` | 模拟和真实 tactical 均调用 predict(observations, metadata, config) |
 | `evaluate.py` | 仅对模拟答案逐片段评分 |
@@ -123,7 +161,6 @@ clip 是按种子打乱的不透明编号 c001…；故事、种子、主客互�
 | `../observations/` | 共同结构校验与真实 tactical ATD 加载器 |
 
 算法接入模板：[algorithms/_template/predict.py](../algorithms/_template/predict.py)。
-`nearest_player` 已停用；本次不修改历史实验。
 
 ## 两条红线
 

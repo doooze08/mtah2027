@@ -22,14 +22,12 @@ git fetch upstream && git merge upstream/main     # 同步官方更新
 
 > 官方仓库是公开的。团队仓库建议设为 **Private**。
 
-## 3. 分支
+## 3. 分支与 PR
 
-| 分支 | 用途 |
-|---|---|
-| `main` | 稳定版本，只通过 PR 合并 |
-| `algo/<algo_name>` | 某个算法的开发 |
-| `exp/<experiment_id>` | 只改实验配置/记录时可用 |
-| `docs/<topic>`、`chore/<topic>` | 文档、脚本、工具 |
+- `main` 只通过 PR 合并；合并前由负责人或评审者在临时副本中复现关键验证。
+- 工作分支按执行者和主题命名，例如 `codex/<topic>`、`claude/<topic>`；一个 PR 只做一件事。
+- PR 描述写清改动、验证方式和限制；验收过程只写在 PR 描述里，不另建仓库文档。
+- 已合并的 PR 不再追加提交；后续修改从最新 `main` 开新分支。
 
 ## 4. 目录归属（减少冲突）
 
@@ -40,17 +38,14 @@ git fetch upstream && git merge upstream/main     # 同步官方更新
 | `scripts/`、`docs/`、`.gitignore` | 任何人，走 PR |
 | `starter/`、`evaluation/`、`games.py`、根目录官方 `*.md` | **不修改**（只随 upstream 同步） |
 
-## 5. 绝对不要提交
+## 5. 不要提交
 
-- `data/` 下的任何比赛数据（`.mp4`、ATD、homography、Smart Tagging）
-- 任何完整比赛的标签 CSV（提交文件、`outputs/`）
-- 模型权重、缓存、`.env` / 密钥
-
-`.gitignore` 已覆盖以上内容。提交前用 `git status` 看一眼；如果某个数据文件出现在列表里，先补 `.gitignore`。
+比赛数据、完整比赛标签、生成结果、模型权重和密钥不进 Git，完整规则见 [AGENTS.md](../AGENTS.md)。
+`.gitignore` 已覆盖这些内容；提交前用 `git status` 确认。
 
 ## 6. 提交前检查
 
 ```bash
-scripts/evaluate.sh <experiment_id>     # 官方校验 + 评测
+python3 -m unittest discover -s tests   # 单元测试
 git status                              # 确认没有数据/结果文件
 ```

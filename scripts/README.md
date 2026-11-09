@@ -6,6 +6,7 @@
 |---|---|
 | `setup_env.sh [--starter]` | 创建 `.venv` 并安装官方 `requirements.txt`（或 `requirements-starter.txt`） |
 | `new_experiment.sh <algo> <desc>` | 生成 `experiments/<id>/` 和 `outputs/<id>/` |
+| `run_simulation.sh <id> <dataset_id>` | 用实验配置里的算法跑模拟数据集并逐片段评分（模拟答案，不涉及比赛答案） |
 | `evaluate.sh <id> [args]` | 用**官方** `validate_submission.py` + `run_evaluation.py` 评测 `outputs/<id>/submission/*.csv` |
 
 约定：

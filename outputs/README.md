@@ -16,4 +16,4 @@ outputs/
 
 - 只把 `submission/` 下的 CSV 交给评测（评测会给目录里的每个 `*.csv` 打分）。
 - 需要分享结果时，把数字写进 `experiments/<experiment_id>/NOTES.md`，不要提交 CSV。
-- `simulation_sets` 是保留目录名。模拟测试的结构与公平比较约定见 [simulation/README.md](../simulation/README.md)；模拟生成器和运行入口尚未实现。
+- `simulation_sets/` 由 `python -m simulation.generate` 写入，文件布局见 [simulation/README.md](../simulation/README.md)；公平比较约定见 [experiments/README.md](../experiments/README.md)。

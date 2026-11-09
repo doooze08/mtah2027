@@ -1,7 +1,7 @@
 """Dataset I/O with separate algorithm, grading and debugging paths.
 
 load_clips opens only observations.csv and metadata.json. This is an interface boundary,
-not an operating-system sandbox (see docs/EXPERIMENTS.md).
+not an operating-system sandbox (see experiments/README.md).
 """
 
 import json

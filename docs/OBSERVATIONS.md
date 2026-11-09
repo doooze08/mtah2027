@@ -1,6 +1,7 @@
 # 统一观测接口
 
-依据：[ADR-001](ADR-001-ATD-OBSERVATIONS.md)。本版本只统一格式和调用方式，不加入观测缺陷。
+依据：[ADR-001](decisions/ADR-001-ATD-OBSERVATIONS.md)。模拟默认无观测缺陷；可选球坐标缺失的参数与假设见
+[模拟器 README](../simulation/README.md#可选球坐标缺失)，不改变本数据契约。
 真实与模拟均使用 `predict(observations, metadata, config)`，返回与输入等长的 `H/A/D/X` 序列。
 运行器负责读取、校验和写 CSV。算法不自行读取文件。
 
@@ -76,19 +77,16 @@ frame,ball_x,ball_y,1_x,1_y,1_s,2_x,2_y,2_s,…,46_x,46_y,46_s
 不设未经验证的速度上限。缺失值保持 NaN，`ball_missing_frames` 预期约占 43%（依据 DATA.md，
 实际数量以本地输出为准）。输出 CSV 应为 199,319 行（另加 1 行表头），标签全部为 X。
 
-Mac 本地全量验证已通过（kloppy 3.18.0）：199,319 行、141 列、frame=0..199318，
-46 个槽位均有球队（24 H、22 A），25 fps、105 × 68 m。球缺失 85,831 帧（43.06%），
-全部坐标有限值范围 −0.10713..1.48854，速度范围 0.0001574..11.2938261 m/s。
-加载耗时 72.3 s，采样峰值 RSS 为 4,908,417,024 bytes（约 4.57 GiB）。
-只读取 tactical TXT/XML，未读取比赛答案；这是集成验证，不是控球准确率证据。
-命令、输入校验和及产物见 [复核实验记录](../experiments/20261107_placeholder_atd_review/NOTES.md)。
+Mac 本地全量验证结果（行数、槽位、缺球、耗时和内存）见
+[复核实验记录](../experiments/20261107_placeholder_atd_review/NOTES.md)。
 
 ## 模拟验证与迁移
 
 命令见 [simulation/README.md](../simulation/README.md)。算法读取器只打开 `observations.csv` 与
 `metadata.json`；运输文件中的 `clip` 分组键会先移除，算法只看到 141 列。
 旧长表和 `game_state.csv` 数据集不自动迁移；用新编号重新生成，不覆盖已有数据。
-查看器不兼容旧数据集，只读取新格式的 debug 干净档。`nearest_player` 已停用，旧实验不改写。
+查看器不兼容旧数据集，展示新格式的 debug 干净档，并从 observations 标注算法缺球区间。
+`nearest_player` 已停用，旧实验不改写。
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v

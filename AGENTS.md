@@ -42,7 +42,7 @@ More than a Hack 2027 第一阶段：为 Barcelona 对 Athletic Club 的战术�
 |---|---|
 | `data/tactical/` | 参考时间轴。`BAR-ATH_tactical_atd.txt` 是逐帧球员／球位置和速度；`BAR-ATH_tactical_atd.xml` 是球队及追踪元信息 |
 | `data/broadcast/` | 可选转播输入，与 tactical 不同步，不能直接混用帧编号 |
-| `algorithms/` | 自有算法，每个一个子目录。真实比赛和模拟片段统一入口为 `predict(observations, metadata, config)`；输入是 ATD 宽表、槽位球队表、球场尺寸和帧率，不含 z、裁判信号或球员身份。约定见 `algorithms/_template/predict.py`、`docs/OBSERVATIONS.md` |
+| `algorithms/` | 自有算法，每个一个子目录。真实比赛和模拟片段统一入口为 `predict(observations, metadata, config)`；输入是 ATD 宽表、槽位球队表、球场尺寸和帧率，不含 z、裁判信号或球员身份。约定见 `algorithms/_template/predict.py`、`docs/OBSERVATIONS.md`。规则允许使用全部提供的自动数据；Smart Tagging 和录像作为后续阶段的补充证据，见 `docs/decisions/ADR-002-INPUT-SOURCES.md` |
 | `simulation/` | 模拟器和场景。已实现 TI01、HD01、BP01–BP03、LC01–LC05、DC01–DC03、ST01–ST04，共 17 个子型；可选死球三策略缺球和活球短缺。用法和文件格式见 `simulation/README.md` |
 | `outputs/simulation_sets/<dataset_id>/` | 固定模拟测试集；观测、正确答案和生成清单分别保存，不进 Git |
 | `experiments/<experiment_id>/` | 可追踪的配置和结论，进 Git；已完成实验不覆盖配置，参数变化新建实验 |
@@ -97,7 +97,7 @@ bash scripts/run_simulation.sh <experiment_id> <dataset_id>
 
 ## 实验与版本管理
 
-- 公平比较使用相同固定测试集；实验配置、数据校验和复现记录见 [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md)。
+- 公平比较使用相同固定测试集；实验规范见 [experiments/README.md](experiments/README.md)；数据认知汇总见 [docs/FINDINGS.md](docs/FINDINGS.md)。
 - Git 只保存代码、配置、说明和实验结论。原始数据、生成预测／报告、模型权重、环境和密钥不加入 Git。
   官方原本跟踪的公开答案及四个 baseline 文件保留，不因全局排除规则删除。
 - 保留其他队员或其他任务未提交的修改，不自动清理、暂存或提交不相关文件。
