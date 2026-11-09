@@ -21,6 +21,9 @@ def build_payload(dataset_id, experiment_id):
     output = Path(REPO_ROOT) / "outputs" / experiment_id / "simulation" / dataset_id
     # Full clean positions are debug-only, including height and script object ids.
     observations = pd.read_csv(directory / CLEAN_FILE)
+    ball_observations = pd.read_csv(directory / "observations.csv",
+                                    usecols=["clip", "frame", "ball_x", "ball_y"])
+    ball_observations["ball_visible"] = ball_observations[["ball_x", "ball_y"]].notna().all(axis=1)
     truth = pd.read_csv(directory / "truth.csv").rename(columns={"label": "truth"})
     samples = pd.read_csv(directory / "samples.csv")
     events = pd.read_csv(directory / "events.csv", keep_default_na=False)
@@ -28,6 +31,9 @@ def build_payload(dataset_id, experiment_id):
     assert not observations.duplicated(keys + ["object"]).any()
     assert observations.groupby(keys).size().eq(23).all()
     labels = truth.copy()
+    labels = labels.merge(ball_observations[keys + ["ball_visible"]], on=keys,
+                          how="left", validate="one_to_one")
+    assert labels["ball_visible"].notna().all()
     assert not labels.duplicated(keys).any()
     assert labels["truth"].isin(["H", "A", "D"]).all()
     if (output / "predictions.csv").exists():
@@ -61,6 +67,7 @@ def build_payload(dataset_id, experiment_id):
             "objects": [{"id": obj, "team": None if obj == "ball" else
                          obs.loc[obs["object"] == obj, "team"].iloc[0]} for obj in objects],
             "truth": frame_labels["truth"].tolist(),
+            "ballVisible": frame_labels["ball_visible"].tolist(),
             "prediction": frame_labels["prediction"].where(frame_labels["prediction"].notna(), None).tolist(),
             "events": events[events["clip"] == clip_id].to_dict("records"),
         })

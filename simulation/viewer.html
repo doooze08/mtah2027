@@ -20,7 +20,7 @@
 <div class="transport"><div class="transport-row"><div class="buttons"><button id="previous" aria-label="上一帧">← 一帧</button><button id="play" class="primary">播放</button><button id="next" aria-label="下一帧">一帧 →</button></div><select id="speed" aria-label="播放速度"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></div><input id="seek" type="range" min="0" value="0" step="1" aria-label="时间轴"><div class="time-row"><span class="small">第 <input id="frameInput" type="number" min="0" value="0" step="1" aria-label="帧编号"> 帧 <span id="lastFrame"></span></span><span id="clock" class="readout"></span></div></div>
 <div class="tabs"><label><input id="showTrail" type="checkbox" checked>球的近 1 秒轨迹</label><label><input id="showIds" type="checkbox">球员编号</label><label><input id="showEvents" type="checkbox" checked>事件与核心窗口</label></div>
 <div class="chart-head"><span>球高度 z（m）· 仅模拟剧本有，算法看不到</span><strong id="ballHeight" class="readout"></strong></div><canvas id="height" role="img" aria-label="球高度随时间变化"></canvas>
-<div class="chart-head"><span>控球标签对照</span><span><span style="color:#d37049">■</span> 不一致区间</span></div><canvas id="timeline" role="img" aria-label="正确标签与算法预测时间轴"></canvas><div class="chart-foot">点击高度曲线或标签色带，可跳到对应帧。灰色表示缺少预测。</div>
+<div class="chart-head"><span>控球标签与球观测</span><span><span style="color:#d37049">■</span> 不一致区间</span></div><canvas id="timeline" style="height:136px" role="img" aria-label="正确标签、算法预测与缺球时间轴"></canvas><div class="chart-foot">点击曲线或色带跳帧。紫色：算法看不到球；球场中的紫色虚线球仍是调试用干净轨迹。</div>
 </section>
 <aside class="side"><section class="panel status"><div class="status-title">当前帧的判断</div><div class="label-pair"><div class="label-cell"><small>正确标签</small><span id="truthBadge" class="badge"></span></div><div class="label-cell"><small>算法预测</small><span id="predictionBadge" class="badge"></span></div></div><div id="comparison" class="status-note" aria-live="polite"></div><div id="clipSummary" class="status-note"></div></section>
 <section class="panel"><div class="panel-heading"><span>剧本事件</span><span class="small">点击跳帧</span></div><div id="events" class="events"></div></section>
@@ -35,7 +35,7 @@ const data = JSON.parse(document.getElementById("simulation-data").textContent);
 const $ = id => document.getElementById(id);
 const colors = {H:"#e77e57", A:"#558cdb", D:"#657873", X:"#918aa6", missing:"#b9c1c6"};
 const names = {H:"主队 H", A:"客队 A", D:"死球 D", X:"弃答 X"};
-const scenarios = {TI01:"界外球重启", HD01:"长传 · 争顶与控制"};
+const scenarios = {TI01:"界外球重启", HD01:"长传 · 争顶与控制", ST01:"犯规与任意球", ST02:"长等待界外球", ST03:"长等待球门球", ST04:"进球与中圈开球"};
 const eventNames = {legal_restart:"合法重启", control_start:"取得控制", incidental_touch:"碰球，未取得控制", ball_out:"球出界", stoppage:"停止比赛"};
 let clip, frame = 0, playing = false, startTime = 0, startFrame = 0, speed = 1;
 const canvases = ["pitch", "height", "timeline"];
@@ -92,11 +92,13 @@ function drawPitch() {
   });
   const ball=clip.positions[frame][0];
   if(finiteXY(ball)){
+    const visible=clip.ballVisible[frame];
     const [x,y]=xy(ball);c.beginPath();c.arc(x,y,9,0,2*Math.PI);c.fillStyle="rgba(12,27,20,.4)";c.fill();
-    c.beginPath();c.arc(x,y,5,0,2*Math.PI);c.fillStyle="#ffe296";c.fill();c.strokeStyle="#fff9e8";c.lineWidth=1.6;c.stroke();
+    c.beginPath();c.arc(x,y,visible?5:8,0,2*Math.PI);c.fillStyle=visible?"#ffe296":"rgba(203,167,255,.25)";c.fill();c.strokeStyle=visible?"#fff9e8":"#d4b1ff";c.lineWidth=1.6;c.setLineDash(visible?[]:[3,3]);c.stroke();c.setLineDash([]);
     c.fillStyle="#fff0c9";c.font="11px sans-serif";c.textAlign="left";
     if(Number.isFinite(ball[2]))c.fillText("z "+ball[2].toFixed(2)+" m",Math.min(x+12,w-85),Math.max(oy+13,y-12));
   }
+  if(!clip.ballVisible[frame]){c.fillStyle="#e0c6ff";c.font="bold 13px sans-serif";c.textAlign="left";c.fillText("算法看不到球 · 虚线为干净轨迹",ox+8,oy+20);}
   c.fillStyle="#bdd4c1";c.font="10px sans-serif";c.textAlign="left";c.fillText("(0, 0)",ox,Math.min(h-5,oy+breadth*scale+16));
   c.textAlign="right";c.fillText(length+" × "+breadth+" m",w-ox,Math.min(h-5,oy+breadth*scale+16));
 }
@@ -134,16 +136,20 @@ function drawTimeline() {
   }
   c.fillStyle="#ce754c";
   for(let i=0;i<n;i++)if(clip.prediction[i]!=null&&clip.prediction[i]!==clip.truth[i])c.fillRect(g.left+i/n*g.width,79,Math.max(1,g.width/n),4);
+  c.fillStyle="#657873";c.textAlign="right";c.fillText("球观测",g.left-12,111);
+  for(let start=0,i=1;i<=n;i++)if(i===n||clip.ballVisible[i]!==clip.ballVisible[start]){
+    c.fillStyle=clip.ballVisible[start]?"#c2dac8":"#9a70c9";c.fillRect(g.left+start/n*g.width,96,(i-start)/n*g.width+.3,20);start=i;
+  }
   // Timeline bins cover full frame intervals; the cursor sits at the bin centre.
   const timelineG={left:g.left+g.width/(2*n),right:g.right-g.width/(2*n),width:g.width*(n-1)/n};
-  drawMarkers(c,timelineG,14,86);
+  drawMarkers(c,timelineG,14,120);
 }
 function badge(id,label) {$(id).textContent=names[label]||"无预测";$(id).style.backgroundColor=colors[label]||colors.missing;}
 function render() {
   const n=clip.positions.length;$("seek").value=frame;$("frameInput").value=frame;
   $("clock").textContent=(frame/data.fps).toFixed(2)+" / "+((n-1)/data.fps).toFixed(2)+" s";
   badge("truthBadge",clip.truth[frame]);badge("predictionBadge",clip.prediction[frame]);
-  $("comparison").textContent=clip.prediction[frame]==null?"此帧无预测":clip.truth[frame]===clip.prediction[frame]?"此帧判断一致":"此帧判断不一致";
+  $("comparison").textContent=(clip.ballVisible[frame]?"球坐标可见。":"算法看不到球。")+(clip.prediction[frame]==null?"此帧无预测":clip.truth[frame]===clip.prediction[frame]?"此帧判断一致":"此帧判断不一致");
   $("comparison").style.color=clip.prediction[frame]!=null&&clip.truth[frame]!==clip.prediction[frame]?"#b65f3b":"#657873";
   const z=clip.positions[frame][0][2];$("ballHeight").textContent=Number.isFinite(z)?z.toFixed(2)+" m":"—";
   $("previous").disabled=frame===0;$("next").disabled=frame===n-1;

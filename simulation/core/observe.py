@@ -1,6 +1,6 @@
 """Project the complete simulated world onto the shared tactical ATD contract.
 
-This version adds no observation defects. It removes height, identities and referee signals.
+It removes height, identities and referee signals. Ball-only gaps are opt-in.
 """
 
 import numpy as np
@@ -8,9 +8,10 @@ import pandas as pd
 
 from observations.schema import COLUMNS, SLOTS
 from simulation.core.constants import FPS, PITCH_LENGTH, PITCH_WIDTH
+from simulation.core.gaps import ball_gap_mask
 
 
-def observe(clip, seed=0):
+def observe(clip, seed=0, gaps=None):
     """Return (frame table, metadata); the story seed fixes all track-slot assignments."""
     slots = np.random.default_rng(seed).permutation(SLOTS)
     # Tactical XML has 24 home slots and 22 away slots; each team fields 11 players.
@@ -22,6 +23,9 @@ def observe(clip, seed=0):
     ball = frames[frames["object"] == "ball"].set_index("frame").reindex(range(clip.n_frames))
     observations["ball_x"] = ball["x"] / PITCH_LENGTH
     observations["ball_y"] = ball["y"] / PITCH_WIDTH
+    if gaps is not None:
+        missing, _ = ball_gap_mask(clip, seed, gaps)
+        observations.loc[missing, ["ball_x", "ball_y"]] = np.nan
     for obj in ["p{:02d}".format(i) for i in range(1, 23)]:
         track = frames[frames["object"] == obj].set_index("frame").reindex(range(clip.n_frames))
         slot = next(team_slots[track["team"].iloc[0]])

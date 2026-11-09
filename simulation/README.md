@@ -1,14 +1,17 @@
 # 模拟测试
 
 模拟算法输入与真实 tactical ATD 共用格式和唯一入口，决策见 [ADR-001](../docs/ADR-001-ATD-OBSERVATIONS.md)。
-当前生成无观测缺陷的剧本：不加缺球、噪声、追踪丢失或槽位交换。模拟成绩不代表真实比赛成绩。
+默认生成无观测缺陷的剧本；可选加入球坐标缺失，不加球员漏检、噪声或槽位交换。模拟成绩不代表真实比赛成绩。
 当前实现 TI01、HD01、基础控球 BP01–BP03、长传落点 LC01–LC05、盘带擦碰 DC01–DC03，
-共 13 个子型（各含主客互换版本）。角落场景规格见
+以及长停顿 ST01–ST04，共 17 个子型（各含主客互换版本）。角落场景规格见
 [CLEAN_CORNER_CASES_V1.md](scenarios/CLEAN_CORNER_CASES_V1.md)，基础控球规格、限制与运行命令见
 [BASIC_POSSESSION.md](scenarios/BASIC_POSSESSION.md)。
 地滚球、停球、弹跳与可选背景跟随的接口及对照示例见 [MOTION.md](MOTION.md)。
 LC/DC 默认启用背景跟随；BP 与新增剧本按故事抽取运动参数，TI01/HD01 保持旧行为。
 验收结果及查看器抽查记录保存在 [PR #11](https://github.com/doooze08/mtah2027/pull/11) 描述中。
+ST 故事、缺球参数和运行命令见 [长停顿与可选缺球](scenarios/STOPPAGE_RESTART.md)。
+`--dead-ball-gaps` 开启后，每段死球随机选择整段缺球、延迟数秒后缺球或全程可见，
+默认各约 1/3；这是模拟假设。缺球只改观测，不改答案。参数与抽样结果写入 manifest。
 
 只生成和查看新增场景，不运行算法：
 
@@ -61,7 +64,8 @@ bash scripts/run_simulation.sh 20261107_placeholder_atd_interface atd_interface_
 可选择片段、播放／暂停、拖动时间轴、输入帧号或逐帧查看；空格播放，左右键步进。
 页面展示的是 **debug 中的完整剧本轨迹**，不是算法实际可见输入。
 球高度曲线标注“仅模拟剧本有，算法看不到”；同时显示答案、预测及可点击事件。
-缺少预测时显示灰色“无预测”，NaN 不画点；数据格式或帧对齐错误抛异常。
+缺少预测时显示灰色“无预测”；紫色色带标注缺球帧，并用紫色虚线球显示干净轨迹。
+数据格式或帧对齐错误抛异常。
 
 ## 文件放置
 
@@ -96,7 +100,7 @@ outputs/<experiment_id>/simulation/<id>/
 全部槽位都有球队：24 个 H、22 个 A，每队各 11 个活动槽位；其余 24 槽位的 x/y/s 为 NaN。
 映射直接使用故事种子，同种子同映射。模拟速度由相邻位置按 25 fps 差分计算，首帧用前向差分；
 完整公式和真实 ATD 本地验证命令见 [统一观测接口](../docs/OBSERVATIONS.md)。
-当前每帧都有球和 22 名球员；这是无缺陷模拟范围，不是真实数据质量假设。
+默认每帧都有球和 22 名球员；开启缺球时仍保留全部球员。这不是真实数据质量假设。
 
 clip 是按种子打乱的不透明编号 c001…；故事、种子、主客互换配对只记入评分侧文件。
 同一故事的主客互换版本使用相同故事种子，球场旋转 180°；同种子的片段共享槽位映射。
@@ -110,7 +114,7 @@ clip 是按种子打乱的不透明编号 c001…；故事、种子、主客互�
 | `core/motion.py` | 球员和球的连续轨迹 |
 | `core/events.py` | 事件与唯一答案推导 |
 | `core/checks.py` | 场景自检 |
-| `core/observe.py` | 完整世界投影为 ATD 宽表；不加观测缺陷 |
+| `core/observe.py`、`core/gaps.py` | 完整世界投影为 ATD 宽表；可选球坐标缺失 |
 | `core/io.py` | 算法与评分分开读取 |
 | `generate.py` | 生成数据集、自检和记录版本 |
 | `run_algorithm.py` | 模拟和真实 tactical 均调用 predict(observations, metadata, config) |
