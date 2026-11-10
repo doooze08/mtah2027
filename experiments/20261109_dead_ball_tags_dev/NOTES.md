@@ -29,7 +29,7 @@
 新算法调用共享运行器并传 --tags；原算法用同一实验 --variant baseline，保持旧参数。
 标签生成只读模拟重启事件与样本描述，不读逐帧答案；预测只读观测和区间标签。
 诊断器才读取模拟 truth。输出在 outputs/20261109_dead_ball_tags_dev/，baseline 位于其子目录。
-每次预测的 run_metadata.json 记录实际参数、预测源码哈希与标签哈希。
+源码和实际参数分别以定稿提交、config.yaml 为准。
 
 ## 评审回归
 

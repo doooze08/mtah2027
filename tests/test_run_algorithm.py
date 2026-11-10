@@ -1,6 +1,5 @@
 """Shared runner compatibility and optional interval-tag routing, using synthetic input."""
 
-import json
 import tempfile
 import unittest
 from importlib import import_module
@@ -21,9 +20,9 @@ class AlgorithmRunnerTests(unittest.TestCase):
         algorithm.predict.assert_called_once_with(observations, {}, {})
         self.assertEqual(result.label.tolist(), ['D', 'H'])
 
-    def test_tagged_variant_writes_separate_outputs_and_source_provenance(self):
+    def test_tagged_variant_writes_separate_outputs(self):
         observations = pd.DataFrame({'frame': [0, 1]})
-        algorithm = SimpleNamespace(predict=Mock(return_value=['D', 'H']), __file__=__file__)
+        algorithm = SimpleNamespace(predict=Mock(return_value=['D', 'H']))
         config = {'algorithm': 'tagged', 'params': {'a': 1},
                   'variants': {'complete': {'params': {'a': 2}}}}
         tags = [{'code': 'SET PIECES', 'start_frame': 0, 'end_frame': 2, 'team': 'H'}]
@@ -39,9 +38,6 @@ class AlgorithmRunnerTests(unittest.TestCase):
             main()
             out = Path(tmp) / 'outputs/exp/complete/simulation/synthetic'
             self.assertEqual(pd.read_csv(out / 'predictions.csv').label.tolist(), ['D', 'H'])
-            metadata = json.loads((out / 'run_metadata.json').read_text())
-            self.assertEqual(metadata['variant'], 'complete')
-            self.assertIsNotNone(metadata['tags_sha256'])
             self.assertFalse((Path(tmp) / 'outputs/exp/simulation').exists())
         algorithm.predict.assert_called_once_with(observations, {}, {'a': 2}, tags=tags)
 

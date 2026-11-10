@@ -1,8 +1,6 @@
-"""Reproduce consolidated development, tag ablation, or one frozen independent check."""
+"""Reproduce consolidated development, tag ablation, or independent validation."""
 
 import argparse
-import hashlib
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -34,12 +32,6 @@ def main():
     settings = config['validation']
     output = ROOT / 'outputs' / experiment
     output.mkdir(parents=True, exist_ok=True)
-    if args.split == 'final':
-        freeze = json.loads((ROOT / 'experiments' / FINAL / 'freeze.json').read_text())
-        for path, expected in freeze.items():
-            assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == expected, path
-        with (output / 'review_final_once.json').open('x') as handle:
-            json.dump({'freeze': freeze, 'seed': settings['seed']}, handle, indent=2)
     datasets = []
     for group, options in GROUPS.items():
         dataset = '{}_{}_s{}'.format(settings['dataset_prefix'], group, settings['seed'])

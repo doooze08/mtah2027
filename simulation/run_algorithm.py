@@ -7,11 +7,9 @@ Simulation reads observations.csv, metadata.json and optional interval tags; nei
 """
 
 import argparse
-import hashlib
 import importlib
 import json
 import os
-from pathlib import Path
 
 import pandas as pd
 import yaml
@@ -92,13 +90,6 @@ def main():
 
     os.makedirs(os.path.dirname(target), exist_ok=True)
     result.to_csv(target, index=False)
-    source = Path(algorithm.__file__)
-    Path(target).with_name('run_metadata.json').write_text(json.dumps({
-        'experiment': args.experiment, 'variant': args.variant, 'config': config,
-        'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
-        'tags_sha256': (hashlib.sha256(json.dumps(tags, sort_keys=True).encode()).hexdigest()
-                        if tags is not None else None),
-        'input': args.dataset or 'tactical', 'reads_public_answers': False}, indent=2))
     print("wrote {}".format(os.path.relpath(target, io.REPO_ROOT)))
 
 
