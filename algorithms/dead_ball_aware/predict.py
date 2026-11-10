@@ -122,7 +122,7 @@ def infer(observations, metadata, config, tags=None):
         if matching and launch > 0 and slow_start[launch - 1] < 0:
             preceding = [g for g in gaps if 0 <= launch - g[1] <= rise]
             if preceding:
-                anchor = preceding[-1][0]
+                anchor = preceding[-1][0] - 1
         if matching and anchor > 0 and slow_start[anchor - 1] >= 0:
             start = int(slow_start[anchor - 1])
             if ((anchor - start) / fps >= config['tagged_slow_s']
