@@ -14,7 +14,7 @@ from observations.schema import COLUMNS
 class DeadBallAwareTests(unittest.TestCase):
     def setUp(self):
         self.config = yaml.safe_load((Path(__file__).parents[1] / 'experiments' /
-            '20261109_dead_ball_tags_dev_v3' / 'config.yaml').read_text())['params']
+            '20261109_dead_ball_tags_dev' / 'config.yaml').read_text())['params']
         self.obs = pd.DataFrame(np.nan, index=range(450), columns=COLUMNS)
         self.obs['frame'] = range(450)
         self.obs[['ball_x', 'ball_y']] = [20 / 105, 30 / 68]
@@ -92,6 +92,44 @@ class DeadBallAwareTests(unittest.TestCase):
         self.assertEqual(plain[150], 'H')
         self.assertEqual(result[150], 'D')
         self.assertTrue(audit['visible_stoppages'][0]['evidence_before_gap'])
+        self.assertEqual(result[350], 'H')
+
+    def test_two_confirmed_teammates_restart_at_the_pass_without_a_fast_release(self):
+        config = {**self.config, 'release_speed_m_s': 100.0}
+        result, audit = infer(self.obs, self.meta, config)
+        self.assertEqual(result[:25], ['D'] * 25)
+        self.assertEqual(result[25:35], ['H'] * 10)
+        self.assertFalse(audit['restarts'])
+        self.assertEqual(audit['confirmed_passes'][0]['source_slot'], '1')
+        self.assertEqual(audit['confirmed_passes'][0]['receiver_slot'], '2')
+        opponent = {**self.meta, 'slot_teams': {**self.meta['slot_teams'], '2': 'A'}}
+        self.assertEqual(predict(self.obs, opponent, config)[:100], ['D'] * 100)
+
+    def test_one_player_or_a_gap_cannot_supply_two_control_confirmations(self):
+        config = {**self.config, 'release_speed_m_s': 100.0}
+        self.obs.loc[100:225, ['ball_x', 'ball_y']] = np.nan
+        self.assertEqual(predict(self.obs, self.meta, config)[100:350], ['D'] * 250)
+        self.obs[['ball_x', 'ball_y']] = [20 / 105, 30 / 68]
+        self.assertEqual(predict(self.obs, self.meta, config), ['D'] * len(self.obs))
+
+    def test_two_release_transition_intervals_do_not_erase_a_long_slow_wait(self):
+        self.obs.loc[348:350, 'ball_x'] = np.array([28, 28.15, 28.30]) / 105
+        self.obs.loc[350:370, 'ball_x'] = np.linspace(28.30, 36, 21) / 105
+        result, audit = infer(self.obs, self.meta, self.config, [self.tag])
+        self.assertEqual(result[349], 'D')
+        self.assertEqual(result[350], 'H')
+        self.assertEqual(audit['visible_stoppages'][0]['transition_frames'], 2)
+
+    def test_release_actor_is_selected_before_acceleration_not_near_the_fast_ball(self):
+        self.obs.loc[200:325, ['ball_x', 'ball_y']] = np.nan
+        self.obs.loc[350:352, 'ball_x'] = np.array([28, 28.399, 29.329]) / 105
+        self.obs.loc[352:355, 'ball_x'] = np.linspace(29.329, 36, 4) / 105
+        self.obs.loc[356:, 'ball_x'] = 36 / 105
+        self.obs.loc[330:, '25_x'] = 28.16 / 105
+        result, audit = infer(self.obs, self.meta, self.config)
+        release = next(record for record in audit['restarts'] if record['launch'] == 350)
+        self.assertEqual(release['slot'], '2')
+        self.assertLess(release['actor_frame'], 350)
         self.assertEqual(result[350], 'H')
 
 

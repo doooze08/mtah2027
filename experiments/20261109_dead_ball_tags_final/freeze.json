@@ -1,0 +1,8 @@
+{
+  "algorithms/dead_ball_aware/predict.py": "61de6957594845e5d106ca86270970cc0b0a8b639fa7a3ebdb881ec7233bd7c9",
+  "algorithms/sustained_control/predict.py": "ce3e3327c22ff121eb772d064c920615a69b806872b0eb1a4fdaf9a10c2307e4",
+  "simulation/run_algorithm.py": "b5d13f44e8c64a1229f3556115bb7a0ab69c3a7749a6a2afba82086c074825fe",
+  "experiments/20261109_dead_ball_tags_dev/generate_tags.py": "f503b8d1989248ccc56f488d243cacda13758dfcf56b8f1adbc37783cfbb7f51",
+  "experiments/20261109_dead_ball_tags_dev/diagnostics.py": "77475cb7e43968b02ab599b2a6bf769d87f8917e61385df002e4d35175da7675",
+  "experiments/20261109_dead_ball_tags_final/config.yaml": "e9e0f4343b906c367c7edcb184a9b3f7936d74cfe1d2462f9b3aa29aa0ff0264"
+}

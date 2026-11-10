@@ -1,6 +1,7 @@
-experiment_id: 20261109_dead_ball_tags_complete_v5
+experiment_id: 20261109_dead_ball_tags_ablation
 algorithm: dead_ball_aware
-description: Coordinate dead-ball rules with optional interval-valued restart tags
+description: 'Consolidated dead-ball review: fixed parameters and optional interval
+  tags'
 params:
   ball_radius_m: 0.11
   control_radius_m: 1.3
@@ -29,4 +30,10 @@ synthetic_tags:
   restart_duration_s: 35.0
 diagnostics:
   event_match_s: 5.0
-tag_profile: complete
+validation:
+  seed: 12000
+  stories: 5
+  dataset_prefix: dbtags_review_dev
+variants:
+  complete: {}
+  none: {}

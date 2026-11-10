@@ -8,14 +8,14 @@ from pathlib import Path
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--experiment', required=True)
-    parser.add_argument('--baseline', required=True)
+    parser.add_argument('--baseline', help='Baseline output ID; defaults to experiment/baseline')
     parser.add_argument('--datasets', required=True, help='comma-separated dataset ids')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2] / 'outputs'
     pairs = []
     for dataset in args.datasets.split(','):
         reports = [json.loads((root / exp / 'simulation' / dataset / 'diagnostics.json').read_text())
-                   for exp in (args.experiment, args.baseline)]
+                   for exp in (args.experiment, args.baseline or args.experiment + '/baseline')]
         pairs.append((dataset, *reports))
     lines = ['# 同数据比较', '', '误差分母为各组全部帧；D→活球、活球→D 均表示真值→预测。', '',
              '| 数据集 | 帧数 | 新算法错误帧（%） | 原算法错误帧（%） |',

@@ -1,6 +1,7 @@
 experiment_id: 20261109_dead_ball_tags_dev
 algorithm: dead_ball_aware
-description: Coordinate dead-ball rules with optional interval-valued restart tags
+description: 'Consolidated dead-ball review: fixed parameters and optional interval
+  tags'
 params:
   ball_radius_m: 0.11
   control_radius_m: 1.3
@@ -12,12 +13,14 @@ params:
   release_gain_m_s: 1.5
   release_rise_s: 0.12
   separation_s: 0.12
-  separation_m: 0.30
-  actor_margin_m: 0.30
+  separation_m: 0.3
+  actor_margin_m: 0.3
   restart_flight_s: 5.0
   release_merge_s: 0.24
   tag_margin_s: 2.0
   tagged_slow_s: 6.0
+  gap_release_grace_s: 0.12
+  visible_grace_s: 3.0
 synthetic_tags:
   seed: 34781
   retention: 0.75
@@ -27,3 +30,17 @@ synthetic_tags:
   restart_duration_s: 35.0
 diagnostics:
   event_match_s: 5.0
+validation:
+  seed: 12000
+  stories: 5
+  dataset_prefix: dbtags_review_dev
+variants:
+  baseline:
+    algorithm: sustained_control
+    params:
+      ball_radius_m: 0.11
+      control_radius_m: 1.3
+      relative_speed_m_s: 3.0
+      confirm_s: 0.32
+      infer_restarts: true
+      restart_lookback_s: 5.0

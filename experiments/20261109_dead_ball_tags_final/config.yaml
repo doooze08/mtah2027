@@ -1,7 +1,7 @@
 experiment_id: 20261109_dead_ball_tags_final
 algorithm: dead_ball_aware
-description: Frozen before generating independent seed 24000..24004 datasets; no further
-  tuning
+description: 'Consolidated dead-ball review: fixed parameters and optional interval
+  tags'
 params:
   ball_radius_m: 0.11
   control_radius_m: 1.3
@@ -30,3 +30,17 @@ synthetic_tags:
   restart_duration_s: 35.0
 diagnostics:
   event_match_s: 5.0
+validation:
+  seed: 36000
+  stories: 5
+  dataset_prefix: dbtags_review_final
+variants:
+  baseline:
+    algorithm: sustained_control
+    params:
+      ball_radius_m: 0.11
+      control_radius_m: 1.3
+      relative_speed_m_s: 3.0
+      confirm_s: 0.32
+      infer_restarts: true
+      restart_lookback_s: 5.0

@@ -48,6 +48,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--experiment', required=True)
     parser.add_argument('--dataset', required=True)
+    parser.add_argument('--variant', help='Run subdirectory within this experiment')
     parser.add_argument('--tolerance-s', type=float, default=None)
     args = parser.parse_args()
     config = load_config(args.experiment)
@@ -56,7 +57,8 @@ def main():
     source = Path(io.dataset_dir(args.dataset))
     truth, samples, _ = io.load_answers(str(source))
     metadata = json.loads((source / 'metadata.json').read_text())
-    out = Path(prediction_dir(args.experiment, args.dataset))
+    output_id = str(Path(args.experiment) / args.variant) if args.variant else args.experiment
+    out = Path(prediction_dir(output_id, args.dataset))
     pred = pd.read_csv(out / 'predictions.csv')
     rows, timings = [], []
     for sample in samples.itertuples(index=False):
