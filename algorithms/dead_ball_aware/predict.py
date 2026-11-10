@@ -116,15 +116,23 @@ def infer(observations, metadata, config, tags=None):
                   'after_gap': bool(after_gap)}
         restarts[restart] = record
         last_launch = launch
-        if matching and launch > 0 and slow_start[launch - 1] >= 0:
-            start = int(slow_start[launch - 1])
-            if ((launch - start) / fps >= config['tagged_slow_s']
+        anchor = launch
+        # A long gap can hide the latter part of an already observed slow wait.
+        # Use the observed pre-gap interval, never a velocity across missing samples.
+        if matching and launch > 0 and slow_start[launch - 1] < 0:
+            preceding = [g for g in gaps if 0 <= launch - g[1] <= rise]
+            if preceding:
+                anchor = preceding[-1][0]
+        if matching and anchor > 0 and slow_start[anchor - 1] >= 0:
+            start = int(slow_start[anchor - 1])
+            if ((anchor - start) / fps >= config['tagged_slow_s']
                     and not outside[start:launch].any()):
                 # Preserve an ordinary-hold allowance before assigning a visible pause.
                 onset = start + math.ceil(config['visible_grace_s'] * fps)
                 forced_dead[onset:restart] = True
-                visible_stoppages.append({'start': onset, 'slow_start': start, 'stop': int(restart),
-                                          'team': team})
+                visible_stoppages.append({'start': onset, 'slow_start': start,
+                                          'slow_stop': int(anchor), 'stop': int(restart),
+                                          'evidence_before_gap': anchor != launch, 'team': team})
 
     state, labels = 'D', []
     for frame in range(n):
