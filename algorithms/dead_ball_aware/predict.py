@@ -80,8 +80,12 @@ def infer(observations, metadata, config, tags=None):
             continue
         if not known[launch:launch + separate + 1].all():
             continue
+        # A restored observation can already be several samples into the release.
+        reach = config['control_radius_m']
+        if after_gap:
+            reach += speed[launch] * config['gap_release_grace_s']
         candidates = np.flatnonzero(
-            (distance[launch] <= config['control_radius_m'])
+            (distance[launch] <= reach)
             & (distance[launch + separate] - distance[launch]
                >= config['separation_m']))
         if not len(candidates):
@@ -115,8 +119,10 @@ def infer(observations, metadata, config, tags=None):
         if matching and launch > 0 and slow_start[launch - 1] >= 0:
             start = int(slow_start[launch - 1])
             if (launch - start) / fps >= config['tagged_slow_s']:
-                forced_dead[start:restart] = True
-                visible_stoppages.append({'start': start, 'stop': int(restart),
+                # Preserve an ordinary-hold allowance before assigning a visible pause.
+                onset = start + math.ceil(config['visible_grace_s'] * fps)
+                forced_dead[onset:restart] = True
+                visible_stoppages.append({'start': onset, 'slow_start': start, 'stop': int(restart),
                                           'team': team})
 
     state, labels = 'D', []
