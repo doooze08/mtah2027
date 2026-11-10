@@ -23,6 +23,7 @@ PR 的验收过程只写在 PR 描述中，不进仓库文档。
 |---|---|
 | [decisions/ADR-001-ATD-OBSERVATIONS.md](decisions/ADR-001-ATD-OBSERVATIONS.md) | 模拟与真实比赛共用 ATD 输入和算法入口 |
 | [decisions/ADR-002-INPUT-SOURCES.md](decisions/ADR-002-INPUT-SOURCES.md) | 先做跟踪坐标核心，后续引入 Smart Tagging 和录像证据 |
+| [decisions/ADR-003-SIMULATED-TAG-FUSION.md](decisions/ADR-003-SIMULATED-TAG-FUSION.md) | 调整阶段顺序：模拟标签融合开发、独立种子验证、真实运行暂缓 |
 | [FINDINGS.md](FINDINGS.md) | 跟踪质量、缺球、官方 D 含义、外部数据和算法现状 |
 | [OBSERVATIONS.md](OBSERVATIONS.md) | 141 列契约和真实 ATD 本地加载 |
 | [research/EXTERNAL_DATA.md](research/EXTERNAL_DATA.md) | 外部公开跟踪数据能否用作测试集 |

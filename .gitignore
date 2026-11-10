@@ -131,3 +131,6 @@ scratch/
 .env
 .env.*
 Thumbs.db
+
+# Local environment symlinks in development worktrees.
+.venv
