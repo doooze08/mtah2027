@@ -61,7 +61,10 @@ D 中持续贴球、捡球、慢速携球或摆球不恢复活球。恢复有两
 
 ## 运行与结果
 
-开发、独立验证和标签对照分别归入对应的单个实验目录；原算法作为同目录 baseline 分支比较。
+[开发](../../experiments/20261109_dead_ball_tags_dev/NOTES.md)、
+[独立验证](../../experiments/20261109_dead_ball_tags_final/NOTES.md)和
+[标签对照](../../experiments/20261109_dead_ball_tags_ablation/NOTES.md)各归入单个实验目录；
+原算法作为同目录 baseline 分支比较。
 统一使用 `python -m simulation.run_algorithm --experiment <id> --dataset <dataset_id>`。
 可选 `--tags <JSON路径>` 传入逐片段区间，`--variant <名称>` 隔离对照输出；不传标签时保持原三参数调用。
 真实标签由使用者本地手动运行时传 `--tactical --tags smart-tagging`，本轮不加载真实比赛。
