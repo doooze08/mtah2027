@@ -118,7 +118,8 @@ def infer(observations, metadata, config, tags=None):
         last_launch = launch
         if matching and launch > 0 and slow_start[launch - 1] >= 0:
             start = int(slow_start[launch - 1])
-            if (launch - start) / fps >= config['tagged_slow_s']:
+            if ((launch - start) / fps >= config['tagged_slow_s']
+                    and not outside[start:launch].any()):
                 # Preserve an ordinary-hold allowance before assigning a visible pause.
                 onset = start + math.ceil(config['visible_grace_s'] * fps)
                 forced_dead[onset:restart] = True
