@@ -10,6 +10,36 @@ def runs(mask):
     return zip(edges[::2], edges[1::2])
 
 
+def prior_dead_start(dead_runs, tag_start, restart, margin):
+    """Start of the latest outside/gap run that overlaps the tag's pre-restart window."""
+    candidates = [start for start, stop in dead_runs
+                  if start < restart and stop > max(0, tag_start - margin)]
+    return max(candidates) if candidates else None
+
+
+def tag_is_contradicted(start, stop, known, outside, speed, slow_speed, distance, teams,
+                        control_radius, confirm_frames):
+    """True only for the narrow case where live, visible, contested play fills the window.
+
+    A tag is a claim that a stoppage exists. The claim is rejected only when every coordinate
+    signal says the ball never stopped: it is continuously visible, never out, never slow, and
+    both teams are within control distance around it. Any missing/out/slow frame is enough to
+    keep trusting the tag.
+    """
+    if stop - start < 2:
+        return False
+    visible = known[start:stop]
+    if not visible.all() or outside[start:stop].any():
+        return False
+    frames = speed[start:stop]
+    if not np.isfinite(frames).all() or (frames <= slow_speed).any():
+        return False
+    near = distance[start:stop] <= control_radius
+    home = (near & (teams == 'H')).any(axis=1)
+    away = (near & (teams == 'A')).any(axis=1)
+    return int((home & away).sum()) >= confirm_frames
+
+
 def infer(observations, metadata, config, tags=None):
     """Return labels and observation-only diagnostics; never read files or answers."""
     fps = metadata['fps']
@@ -61,13 +91,20 @@ def infer(observations, metadata, config, tags=None):
     for start, stop in runs(slow):
         slow_start[start:stop] = start
 
-    relevant_tags = [t for t in (tags or []) if t['code'] == 'SET PIECES']
+    relevant_tags = [t for t in (tags or []) if t.get('code') == 'SET PIECES']
+    trusted = bool(config.get('trusted_tags', False))
+    min_slow = math.ceil(config.get('trusted_tag_min_slow_s', 0.5) * fps)
+    dead_runs = [(int(start), int(stop)) for start, stop in runs(forced_dead)]
+    tags_used, tags_overridden = set(), set()
+    team_conflicts = 0
+
     margin = math.ceil(config['tag_margin_s'] * fps)
     rise = math.ceil(config['release_rise_s'] * fps)
     separate = math.ceil(config['separation_s'] * fps)
     travel = math.ceil(config['restart_flight_s'] * fps)
     refractory = math.ceil(config['release_merge_s'] * fps)
     restarts, visible_stoppages = {}, []
+    tag_owner = {}
     last_launch = -refractory - 1
     for launch in np.flatnonzero(speed >= config['release_speed_m_s']):
         launch = int(launch)
@@ -113,20 +150,54 @@ def infer(observations, metadata, config, tags=None):
             if entry >= min(n, launch + travel) or not known[entry]:
                 continue
             restart = entry
-        support = [t for t in relevant_tags
-                   if t['start_frame'] - margin <= restart < t['end_frame'] + margin]
-        matching = [t for t in support if t['team'] in (None, team)]
+        candidate_support = [t for t in relevant_tags
+                             if t['start_frame'] - margin <= restart < t['end_frame'] + margin]
+        if trusted:
+            support = []
+            for t in candidate_support:
+                key = id(t)
+                if key not in tag_owner:
+                    tag_owner[key] = restart
+                    support.append(t)
+                elif tag_owner[key] == restart:
+                    support.append(t)
+        else:
+            support = candidate_support
+        coordinate_team = team
+        named_teams = {str(t['team']) for t in support if t.get('team')}
+        tag_team = next(iter(named_teams)) if len(named_teams) == 1 else None
+        near_teams = {str(teams[player]) for player in np.flatnonzero(
+            distance[actor_frame] <= config['control_radius_m'])}
+        coordinate_clear = len(near_teams) == 1
+        team_source = 'coordinates'
+        if trusted:
+            if tag_team and not coordinate_clear:
+                team = tag_team
+                team_source = 'tag'
+            elif not coordinate_clear:
+                team_source = 'coordinates_ambiguous'
+            if tag_team and coordinate_clear and tag_team != coordinate_team:
+                team_conflicts += 1
+            tag_supported = bool(support)
+            tag_conflict = bool((tag_team and coordinate_clear
+                                 and tag_team != coordinate_team) or len(named_teams) > 1)
+        else:
+            matching = [t for t in support if t.get('team') in (None, coordinate_team)]
+            tag_supported = bool(matching)
+            tag_conflict = bool(support and not matching)
         # A tag cannot supply a release or override an observed release actor.
         record = {'frame': int(restart), 'launch': launch, 'team': team,
-                  'slot': slots[actor], 'tag_supported': bool(matching),
-                  'tag_conflict': bool(support and not matching),
+                  'slot': slots[actor], 'coordinate_team': coordinate_team,
+                  'team_source': team_source, 'tag_supported': tag_supported,
+                  'tag_conflict': tag_conflict, 'tag_used': False, 'tag_overridden': False,
                   'after_gap': bool(after_gap), 'actor_frame': actor_frame}
         restarts[restart] = record
         last_launch = launch
         anchor = launch
         # A long gap can hide the latter part of an already observed slow wait.
         # Use the observed pre-gap interval, never a velocity across missing samples.
-        if matching and launch > 0 and slow_start[launch - 1] < 0:
+        tag_evidence = support if trusted else matching
+        if tag_evidence and launch > 0 and slow_start[launch - 1] < 0:
             preceding = [g for g in gaps if 0 <= launch - g[1] <= rise]
             if preceding:
                 anchor = preceding[-1][0] - 1
@@ -135,7 +206,7 @@ def infer(observations, metadata, config, tags=None):
         while (anchor > 0 and before_transition - anchor < 2
                and known[anchor - 1] and slow_start[anchor - 1] < 0):
             anchor -= 1
-        if matching and anchor > 0 and slow_start[anchor - 1] >= 0:
+        if not trusted and matching and anchor > 0 and slow_start[anchor - 1] >= 0:
             start = int(slow_start[anchor - 1])
             if ((anchor - start) / fps >= config['tagged_slow_s']
                     and not outside[start:launch].any()):
@@ -146,6 +217,54 @@ def infer(observations, metadata, config, tags=None):
                                           'slow_stop': int(anchor), 'stop': int(restart),
                                           'evidence_before_gap': before_transition != launch,
                                           'transition_frames': before_transition - anchor, 'team': team})
+        elif trusted and support:
+            tag_start = max(0, min(t['start_frame'] for t in support))
+            tag_stop = min(n, max(t['end_frame'] for t in support))
+            prior = prior_dead_start(dead_runs, tag_start, restart, margin)
+            slow_frame = (int(slow_start[anchor - 1])
+                          if anchor > 0 and slow_start[anchor - 1] >= 0 else None)
+            contradiction = False
+            if prior is None:
+                check_start = max(0, min(tag_start, restart - 1))
+                contradiction = tag_is_contradicted(
+                    check_start, restart, known, outside, speed, config['slow_speed_m_s'],
+                    distance, teams, config['control_radius_m'], confirm)
+            if contradiction:
+                tags_overridden.update(id(t) for t in support)
+                record['tag_overridden'] = True
+            else:
+                if prior is not None:
+                    dead_start, evidence_kind = int(prior), 'prior_dead'
+                elif slow_frame is not None and restart - slow_frame >= min_slow:
+                    dead_start, evidence_kind = slow_frame, 'slow'
+                else:
+                    # The label says a stoppage exists, but the start is a coordinate question.
+                    # Without an out/gap/slow start, do not invent a boundary from the tag.
+                    dead_start, evidence_kind = None, 'no_coordinate_start'
+                if dead_start is not None and dead_start < restart:
+                    forced_dead[dead_start:restart] = True
+                    tags_used.update(id(t) for t in support)
+                    record['tag_used'] = True
+                    visible_stoppages.append({
+                        'start': dead_start, 'slow_start': slow_frame if slow_frame is not None else -1,
+                        'slow_stop': int(anchor), 'stop': int(restart),
+                        'evidence_before_gap': before_transition != launch,
+                        'transition_frames': before_transition - anchor, 'team': team,
+                        'team_source': team_source, 'tag_start': tag_start,
+                        'tag_end': tag_stop, 'evidence': evidence_kind})
+
+    # Tags with no coordinate restart can still be audited. They create no D either way; count the
+    # narrow fast, visible, contested case separately from ordinary unmatched labels.
+    if trusted:
+        for tag in relevant_tags:
+            if id(tag) in tags_used or id(tag) in tags_overridden:
+                continue
+            start = max(0, int(tag['start_frame']))
+            stop = min(n, int(tag['end_frame']))
+            if tag_is_contradicted(start, stop, known, outside, speed,
+                                   config['slow_speed_m_s'], distance, teams,
+                                   config['control_radius_m'], confirm):
+                tags_overridden.add(id(tag))
 
     passes = {}
     ordered = sorted(controls)
@@ -180,7 +299,10 @@ def infer(observations, metadata, config, tags=None):
         labels.append(state)
     return labels, {'restarts': list(restarts.values()),
                     'confirmed_passes': list(passes.values()),
-                    'visible_stoppages': visible_stoppages, 'long_gaps': gaps}
+                    'visible_stoppages': visible_stoppages, 'long_gaps': gaps,
+                    'tags_seen': len(relevant_tags), 'tags_used': len(tags_used),
+                    'tags_overridden': len(tags_overridden), 'tag_team_conflicts': team_conflicts,
+                    'tags_unmatched': len(relevant_tags) - len(tags_used | tags_overridden)}
 
 
 def predict(observations, metadata, config, tags=None):
