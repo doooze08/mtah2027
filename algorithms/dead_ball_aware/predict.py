@@ -239,25 +239,7 @@ def infer(observations, metadata, config, tags=None):
                                        config['control_radius_m'], confirm):
                     tags_overridden.add(id(tag))
                 continue
-            if kickoff:
-                start, kind, chosen = eligible[0]
-            else:
-                groups = [[eligible[0]]]
-                for item in eligible[1:]:
-                    previous = groups[-1][-1][2]['frame']
-                    current = item[2]['frame']
-                    between_slow = slow[previous + 1:current]
-                    between_out = outside[previous + 1:current]
-                    same_dead = (current <= previous + 1
-                                 or (between_slow.size and between_slow.mean() >= 0.5)
-                                 or between_out.any())
-                    if same_dead:
-                        groups[-1].append(item)
-                    else:
-                        groups.append([item])
-                group = groups[0]
-                start, kind, _ = min(group, key=lambda item: item[0])
-                _, _, chosen = max(group, key=lambda item: item[2]['frame'])
+            start, kind, chosen = eligible[0]
             coordinate_team = chosen['coordinate_team']
             near_teams = {str(teams[player]) for player in np.flatnonzero(
                 distance[chosen['actor_frame']] <= config['control_radius_m'])}
