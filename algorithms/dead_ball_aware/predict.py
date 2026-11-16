@@ -104,7 +104,7 @@ def infer(observations, metadata, config, tags=None):
     travel = math.ceil(config['restart_flight_s'] * fps)
     refractory = math.ceil(config['release_merge_s'] * fps)
     restarts, visible_stoppages = {}, []
-    tag_owner = {}
+    trusted_candidates = []
     last_launch = -refractory - 1
     for launch in np.flatnonzero(speed >= config['release_speed_m_s']):
         launch = int(launch)
@@ -152,35 +152,15 @@ def infer(observations, metadata, config, tags=None):
             restart = entry
         candidate_support = [t for t in relevant_tags
                              if t['start_frame'] - margin <= restart < t['end_frame'] + margin]
-        if trusted:
-            support = []
-            for t in candidate_support:
-                key = id(t)
-                if key not in tag_owner:
-                    tag_owner[key] = restart
-                    support.append(t)
-                elif tag_owner[key] == restart:
-                    support.append(t)
-        else:
-            support = candidate_support
+        support = candidate_support
         coordinate_team = team
-        named_teams = {str(t['team']) for t in support if t.get('team')}
-        tag_team = next(iter(named_teams)) if len(named_teams) == 1 else None
         near_teams = {str(teams[player]) for player in np.flatnonzero(
             distance[actor_frame] <= config['control_radius_m'])}
         coordinate_clear = len(near_teams) == 1
         team_source = 'coordinates'
         if trusted:
-            if tag_team and not coordinate_clear:
-                team = tag_team
-                team_source = 'tag'
-            elif not coordinate_clear:
-                team_source = 'coordinates_ambiguous'
-            if tag_team and coordinate_clear and tag_team != coordinate_team:
-                team_conflicts += 1
-            tag_supported = bool(support)
-            tag_conflict = bool((tag_team and coordinate_clear
-                                 and tag_team != coordinate_team) or len(named_teams) > 1)
+            tag_supported = False
+            tag_conflict = False
         else:
             matching = [t for t in support if t.get('team') in (None, coordinate_team)]
             tag_supported = bool(matching)
@@ -218,53 +198,96 @@ def infer(observations, metadata, config, tags=None):
                                           'evidence_before_gap': before_transition != launch,
                                           'transition_frames': before_transition - anchor, 'team': team})
         elif trusted and support:
-            tag_start = max(0, min(t['start_frame'] for t in support))
-            tag_stop = min(n, max(t['end_frame'] for t in support))
-            prior = prior_dead_start(dead_runs, tag_start, restart, margin)
             slow_frame = (int(slow_start[anchor - 1])
                           if anchor > 0 and slow_start[anchor - 1] >= 0 else None)
-            contradiction = False
-            if prior is None:
-                check_start = max(0, min(tag_start, restart - 1))
-                contradiction = tag_is_contradicted(
-                    check_start, restart, known, outside, speed, config['slow_speed_m_s'],
-                    distance, teams, config['control_radius_m'], confirm)
-            if contradiction:
-                tags_overridden.update(id(t) for t in support)
-                record['tag_overridden'] = True
-            else:
-                if prior is not None:
-                    dead_start, evidence_kind = int(prior), 'prior_dead'
-                elif slow_frame is not None and restart - slow_frame >= min_slow:
-                    dead_start, evidence_kind = slow_frame, 'slow'
-                else:
-                    # The label says a stoppage exists, but the start is a coordinate question.
-                    # Without an out/gap/slow start, do not invent a boundary from the tag.
-                    dead_start, evidence_kind = None, 'no_coordinate_start'
-                if dead_start is not None and dead_start < restart:
-                    forced_dead[dead_start:restart] = True
-                    tags_used.update(id(t) for t in support)
-                    record['tag_used'] = True
-                    visible_stoppages.append({
-                        'start': dead_start, 'slow_start': slow_frame if slow_frame is not None else -1,
-                        'slow_stop': int(anchor), 'stop': int(restart),
-                        'evidence_before_gap': before_transition != launch,
-                        'transition_frames': before_transition - anchor, 'team': team,
-                        'team_source': team_source, 'tag_start': tag_start,
-                        'tag_end': tag_stop, 'evidence': evidence_kind})
+            record['slow_frame'] = slow_frame
+            record['anchor'] = int(anchor)
+            record['before_transition'] = int(before_transition)
+            record['transition_frames'] = before_transition - anchor
+            trusted_candidates.append(record)
 
-    # Tags with no coordinate restart can still be audited. They create no D either way; count the
-    # narrow fast, visible, contested case separately from ordinary unmatched labels.
+    # Assign tags only after all candidates are known. A live pass inside the tag window must
+    # not consume the tag before the terminal restart of the same dead-ball episode.
     if trusted:
         for tag in relevant_tags:
-            if id(tag) in tags_used or id(tag) in tags_overridden:
+            tag_start = max(0, min(n - 1, int(tag['start_frame'])))
+            tag_stop = min(n, int(tag['end_frame']))
+            kickoff = 'kick off' in str(tag.get('type') or '').lower()
+            eligible = []
+            for record in trusted_candidates:
+                frame = record['frame']
+                if not (tag_start - margin <= frame < tag_stop + margin):
+                    continue
+                prior = prior_dead_start(dead_runs, tag_start, frame, margin)
+                slow_frame = record.get('slow_frame')
+                if prior is not None:
+                    start, kind = int(prior), 'prior_dead'
+                elif (slow_frame is not None and frame - slow_frame >= min_slow
+                      and slow[tag_start]):
+                    start, kind = int(slow_frame), 'slow'
+                elif (slow_frame is not None and slow_frame >= tag_start
+                      and frame - slow_frame >= min_slow):
+                    start, kind = int(slow_frame), 'slow'
+                elif kickoff:
+                    start, kind = int(tag_start), 'kickoff'
+                else:
+                    continue
+                eligible.append((start, kind, record))
+            if not eligible:
+                if tag_is_contradicted(tag_start, tag_stop, known, outside, speed,
+                                       config['slow_speed_m_s'], distance, teams,
+                                       config['control_radius_m'], confirm):
+                    tags_overridden.add(id(tag))
                 continue
-            start = max(0, int(tag['start_frame']))
-            stop = min(n, int(tag['end_frame']))
-            if tag_is_contradicted(start, stop, known, outside, speed,
-                                   config['slow_speed_m_s'], distance, teams,
-                                   config['control_radius_m'], confirm):
-                tags_overridden.add(id(tag))
+            if kickoff:
+                start, kind, chosen = eligible[0]
+            else:
+                groups = [[eligible[0]]]
+                for item in eligible[1:]:
+                    previous = groups[-1][-1][2]['frame']
+                    current = item[2]['frame']
+                    between_slow = slow[previous + 1:current]
+                    between_out = outside[previous + 1:current]
+                    same_dead = (current <= previous + 1
+                                 or (between_slow.size and between_slow.mean() >= 0.5)
+                                 or between_out.any())
+                    if same_dead:
+                        groups[-1].append(item)
+                    else:
+                        groups.append([item])
+                group = groups[0]
+                start, kind, _ = min(group, key=lambda item: item[0])
+                _, _, chosen = max(group, key=lambda item: item[2]['frame'])
+            coordinate_team = chosen['coordinate_team']
+            near_teams = {str(teams[player]) for player in np.flatnonzero(
+                distance[chosen['actor_frame']] <= config['control_radius_m'])}
+            coordinate_clear = len(near_teams) == 1
+            tag_team = str(tag['team']) if tag.get('team') else None
+            team = coordinate_team
+            team_source = 'coordinates'
+            if tag_team and not coordinate_clear:
+                team = tag_team
+                team_source = 'tag'
+            elif not coordinate_clear:
+                team_source = 'coordinates_ambiguous'
+            if tag_team and coordinate_clear and tag_team != coordinate_team:
+                team_conflicts += 1
+            chosen['team'] = team
+            chosen['team_source'] = team_source
+            chosen['tag_conflict'] = bool(tag_team and coordinate_clear
+                                          and tag_team != coordinate_team)
+            if start < chosen['frame']:
+                forced_dead[start:chosen['frame']] = True
+                tags_used.add(id(tag))
+                chosen['tag_used'] = True
+                chosen['tag_supported'] = True
+                visible_stoppages.append({
+                    'start': start, 'slow_start': chosen.get('slow_frame', -1),
+                    'slow_stop': chosen['anchor'], 'stop': chosen['frame'],
+                    'evidence_before_gap': chosen['before_transition'] != chosen['launch'],
+                    'transition_frames': chosen['transition_frames'], 'team': team,
+                    'team_source': team_source, 'tag_start': tag_start,
+                    'tag_end': tag_stop, 'evidence': kind})
 
     passes = {}
     ordered = sorted(controls)

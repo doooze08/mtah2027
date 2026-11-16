@@ -181,6 +181,59 @@ class DeadBallAwareTests(unittest.TestCase):
         self.assertEqual(audit['tags_overridden'], 1)
         self.assertEqual(audit['tags_used'], 0)
 
+    def test_opening_kickoff_tag_does_not_need_slow_evidence(self):
+        tag = {**self.tag, 'start_frame': 0, 'end_frame': 125,
+               'type': 'Kick Off (Start)', 'team': None}
+        _, audit = infer(self.obs, self.meta, self.trusted, [tag])
+        opening = min(audit['restarts'], key=lambda record: abs(record['frame'] - 25))
+        self.assertTrue(opening['tag_used'])
+
+    def test_tag_is_not_stolen_by_an_earlier_live_pass(self):
+        self.obs[['26_x', '26_y']] = [44 / 105, 30 / 68]
+        self.obs.loc[36:249, 'ball_x'] = 28 / 105
+        self.obs.loc[250:260, 'ball_x'] = np.linspace(28, 36, 11) / 105
+        self.obs.loc[261:369, 'ball_x'] = 36 / 105
+        self.obs.loc[370:390, 'ball_x'] = np.linspace(36, 44, 21) / 105
+        self.obs.loc[391:, 'ball_x'] = 44 / 105
+        tag = {**self.tag, 'start_frame': 250, 'end_frame': 440, 'team': 'A'}
+        result, audit = infer(self.obs, self.meta, self.trusted, [tag])
+        early = min(audit['restarts'], key=lambda record: abs(record['frame'] - 250))
+        late = min(audit['restarts'], key=lambda record: abs(record['frame'] - 370))
+        self.assertFalse(early['tag_used'])
+        self.assertTrue(late['tag_used'])
+        self.assertEqual(result[330], 'D')
+
+    def test_tag_waits_for_a_dead_ball_pass_to_the_taker(self):
+        self.obs[['26_x', '26_y']] = [44 / 105, 30 / 68]
+        self.obs.loc[36:149, 'ball_x'] = 28 / 105
+        self.obs.loc[150:160, 'ball_x'] = np.linspace(28, 36, 11) / 105
+        self.obs.loc[161:249, 'ball_x'] = 36 / 105
+        self.obs.loc[250:270, 'ball_x'] = np.linspace(36, 44, 21) / 105
+        self.obs.loc[271:, 'ball_x'] = 44 / 105
+        tag = {**self.tag, 'start_frame': 100, 'end_frame': 400, 'team': 'A'}
+        result, audit = infer(self.obs, self.meta, self.trusted, [tag])
+        early = min(audit['restarts'], key=lambda record: abs(record['frame'] - 150))
+        late = min(audit['restarts'], key=lambda record: abs(record['frame'] - 250))
+        self.assertFalse(early['tag_used'])
+        self.assertTrue(late['tag_used'])
+        self.assertEqual(result[220], 'D')
+
+    def test_tag_waits_for_a_dead_ball_pass_after_an_out(self):
+        self.obs[['26_x', '26_y']] = [44 / 105, 30 / 68]
+        self.obs.loc[36:99, 'ball_x'] = 28 / 105
+        self.obs.loc[100:149, 'ball_x'] = 106 / 105
+        self.obs.loc[150:160, 'ball_x'] = np.linspace(106, 36, 11) / 105
+        self.obs.loc[161:249, 'ball_x'] = 36 / 105
+        self.obs.loc[250:270, 'ball_x'] = np.linspace(36, 44, 21) / 105
+        self.obs.loc[271:, 'ball_x'] = 44 / 105
+        tag = {**self.tag, 'start_frame': 100, 'end_frame': 400, 'team': 'A'}
+        result, audit = infer(self.obs, self.meta, self.trusted, [tag])
+        early = min(audit['restarts'], key=lambda record: abs(record['frame'] - 150))
+        late = min(audit['restarts'], key=lambda record: abs(record['frame'] - 250))
+        self.assertFalse(early['tag_used'])
+        self.assertTrue(late['tag_used'])
+        self.assertEqual(result[220], 'D')
+
 
 if __name__ == '__main__':
     unittest.main()
