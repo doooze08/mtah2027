@@ -15,6 +15,8 @@ class DeadBallAwareTests(unittest.TestCase):
     def setUp(self):
         self.config = yaml.safe_load((Path(__file__).parents[1] / 'experiments' /
             '20261109_dead_ball_tags_dev' / 'config.yaml').read_text())['params']
+        self.trusted = {**self.config, 'trusted_tags': True,
+                        'trusted_tag_min_slow_s': 0.5}
         self.obs = pd.DataFrame(np.nan, index=range(450), columns=COLUMNS)
         self.obs['frame'] = range(450)
         self.obs[['ball_x', 'ball_y']] = [20 / 105, 30 / 68]
@@ -131,6 +133,108 @@ class DeadBallAwareTests(unittest.TestCase):
         self.assertEqual(release['slot'], '2')
         self.assertLess(release['actor_frame'], 350)
         self.assertEqual(result[350], 'H')
+
+    def test_trusted_tag_accepts_a_pause_shorter_than_the_legacy_six_seconds(self):
+        frames = np.arange(36, 325)
+        self.obs.loc[36:324, 'ball_x'] = (20 + 2 * np.cos(frames * 0.7)) / 105
+        self.obs.loc[36:324, 'ball_y'] = (30 + 2 * np.sin(frames * 0.7)) / 68
+        self.obs.loc[325:349, ['ball_x', 'ball_y']] = [20 / 105, 30 / 68]
+        legacy, legacy_audit = infer(self.obs, self.meta, self.config, [self.tag])
+        trusted, trusted_audit = infer(self.obs, self.meta, self.trusted, [self.tag])
+        self.assertFalse(legacy_audit['visible_stoppages'])
+        self.assertTrue(trusted_audit['visible_stoppages'])
+        self.assertEqual(trusted[330], 'D')
+        self.assertEqual(trusted[348], 'D')
+        self.assertEqual(trusted[349], 'H')
+        self.assertEqual(legacy[330], 'H')
+
+    def test_trusted_tag_team_is_used_only_when_the_actors_are_ambiguous(self):
+        self.obs.loc[300:349, ['ball_x', 'ball_y']] = [20 / 105, 30 / 68]
+        self.obs[['25_x', '25_y']] = [20.1 / 105, 30 / 68]
+        self.meta['slot_teams']['25'] = 'A'
+        tag = {**self.tag, 'start_frame': 340, 'team': 'A'}
+        trusted = {**self.trusted, 'tag_margin_s': 0.4}
+        result, audit = infer(self.obs, self.meta, trusted, [tag])
+        tagged = next(record for record in audit['restarts'] if record['frame'] == 349)
+        self.assertEqual(result[350], 'A')
+        self.assertEqual(tagged['team_source'], 'tag')
+        self.obs[['25_x', '25_y']] = np.nan
+        result, audit = infer(self.obs, self.meta, trusted, [tag])
+        tagged = next(record for record in audit['restarts'] if record['frame'] == 349)
+        self.assertEqual(result[350], 'H')
+        self.assertEqual(tagged['team_source'], 'coordinates')
+        self.assertEqual(audit['tag_team_conflicts'], 1)
+
+    def test_trusted_mode_without_tags_matches_the_untagged_branch(self):
+        plain = predict(self.obs, self.meta, self.trusted)
+        self.assertEqual(plain, predict(self.obs, self.meta, self.trusted, []))
+
+    def test_extreme_fast_contested_play_overrides_a_tag_without_creating_dead_ball(self):
+        obs = self.obs.copy()
+        obs[['ball_x', 'ball_y']] = [20.5 / 105, 30 / 68]
+        obs['ball_x'] = (20.5 + (np.arange(len(obs)) % 2)) / 105
+        obs[['1_x', '1_y']] = [20.5 / 105, 30 / 68]
+        obs[['25_x', '25_y']] = [21.5 / 105, 30 / 68]
+        meta = {**self.meta, 'slot_teams': {**self.meta['slot_teams'], '25': 'A'}}
+        tag = {**self.tag, 'start_frame': 0, 'end_frame': 449}
+        _, audit = infer(obs, meta, self.trusted, [tag])
+        self.assertEqual(audit['tags_overridden'], 1)
+        self.assertEqual(audit['tags_used'], 0)
+
+    def test_opening_kickoff_tag_does_not_need_slow_evidence(self):
+        tag = {**self.tag, 'start_frame': 0, 'end_frame': 125,
+               'type': 'Kick Off (Start)', 'team': None}
+        _, audit = infer(self.obs, self.meta, self.trusted, [tag])
+        opening = min(audit['restarts'], key=lambda record: abs(record['frame'] - 25))
+        self.assertTrue(opening['tag_used'])
+
+    def test_tag_is_not_stolen_by_an_earlier_live_pass(self):
+        self.obs[['26_x', '26_y']] = [44 / 105, 30 / 68]
+        self.obs.loc[36:249, 'ball_x'] = 28 / 105
+        self.obs.loc[250:260, 'ball_x'] = np.linspace(28, 36, 11) / 105
+        self.obs.loc[261:369, 'ball_x'] = 36 / 105
+        self.obs.loc[370:390, 'ball_x'] = np.linspace(36, 44, 21) / 105
+        self.obs.loc[391:, 'ball_x'] = 44 / 105
+        tag = {**self.tag, 'start_frame': 250, 'end_frame': 440, 'team': 'A'}
+        result, audit = infer(self.obs, self.meta, self.trusted, [tag])
+        early = min(audit['restarts'], key=lambda record: abs(record['frame'] - 250))
+        late = min(audit['restarts'], key=lambda record: abs(record['frame'] - 370))
+        self.assertFalse(early['tag_used'])
+        self.assertTrue(late['tag_used'])
+        self.assertEqual(result[330], 'D')
+
+    @unittest.expectedFailure
+    def test_dead_ball_pass_to_taker_is_a_known_limitation(self):
+        # Accepted limitation: the first coordinate candidate after the tag start can be the
+        # pass back to the taker. We do not add a rule for this; the test documents it.
+        self.obs[['26_x', '26_y']] = [44 / 105, 30 / 68]
+        self.obs.loc[36:149, 'ball_x'] = 28 / 105
+        self.obs.loc[150:160, 'ball_x'] = np.linspace(28, 36, 11) / 105
+        self.obs.loc[161:249, 'ball_x'] = 36 / 105
+        self.obs.loc[250:270, 'ball_x'] = np.linspace(36, 44, 21) / 105
+        self.obs.loc[271:, 'ball_x'] = 44 / 105
+        tag = {**self.tag, 'start_frame': 100, 'end_frame': 400, 'team': 'A'}
+        result, audit = infer(self.obs, self.meta, self.trusted, [tag])
+        early = min(audit['restarts'], key=lambda record: abs(record['frame'] - 150))
+        late = min(audit['restarts'], key=lambda record: abs(record['frame'] - 250))
+        self.assertFalse(early['tag_used'])
+        self.assertTrue(late['tag_used'])
+        self.assertEqual(result[220], 'D')
+
+    def test_restart_receiver_holding_ball_then_passing_does_not_extend_dead_ball(self):
+        self.obs[['26_x', '26_y']] = [44 / 105, 30 / 68]
+        self.obs.loc[36:149, 'ball_x'] = 28 / 105
+        self.obs.loc[150:160, 'ball_x'] = np.linspace(28, 36, 11) / 105
+        self.obs.loc[161:280, 'ball_x'] = 36 / 105
+        self.obs.loc[281:301, 'ball_x'] = np.linspace(36, 44, 21) / 105
+        self.obs.loc[302:, 'ball_x'] = 44 / 105
+        tag = {**self.tag, 'start_frame': 100, 'end_frame': 400, 'team': 'A'}
+        result, audit = infer(self.obs, self.meta, self.trusted, [tag])
+        restart = min(audit['restarts'], key=lambda record: abs(record['frame'] - 150))
+        later = min(audit['restarts'], key=lambda record: abs(record['frame'] - 281))
+        self.assertTrue(restart['tag_used'])
+        self.assertFalse(later['tag_used'])
+        self.assertEqual(result[200], 'A')
 
 
 if __name__ == '__main__':
