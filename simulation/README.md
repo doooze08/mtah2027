@@ -128,10 +128,13 @@ outputs/<experiment_id>/simulation/<id>/
 | `observations.csv` | `clip, frame, ball_x, ball_y, 1_x, 1_y, 1_s, …, 46_x, 46_y, 46_s` | 共 142 列；读取器移除 clip 后为算法的 141 列。坐标按球场边界 0–1 归一化，场外值不裁切；缺失为 NaN，速度 s 为 m/s；帧号从 0，25 fps |
 | `metadata.json` | `clip → {slot_teams, pitch_length, pitch_width, fps}` | 算法只收到当前片段的值，不收到 clip id。全部 46 个字符串槽位键映射到 H/A；尺寸单位 m，帧率单位 fps；无身份映射、事件或场景名 |
 | `debug/clean_positions.csv` | `clip, frame, object, team, x, y, z` | 每帧 23 行（球 + 22 名球员）；object 为 ball 或 p01–p22，球的 team 为空。位置单位 m，z 为球心高度，球员 z 为空；不供算法读取 |
-| `truth.csv` | `clip, frame, label` | H/A/D，只由事件推导 |
+| `truth.csv` | `clip, frame, label` | 模拟为 H/A/D，只由事件推导；外部 `ext_` 集另含 X（不确定/不可判断） |
 | `events.csv` | `clip, event, t, frame, team` | t 为秒，边界帧 `ceil(25·t)` |
 | `samples.csv` | `clip, family, subtype, story_id, seed, initiating_team, n_frames, core_start, core_stop, expected_sequence` | 核心窗口为左闭右开，initiating_team 为发起方 |
 | `predictions.csv` | `clip, frame, label` | H/A/D/X，每个片段每帧一行 |
+
+`outputs/simulation_sets/ext_<source>_<match>/` 是外部比赛转换出的弱标签测试集，`ext_` 前缀表示数据不是模拟器生成；文件格式与上表相同，但没有 `debug/clean_positions.csv` 和 `manifest.json`。
+转换命令、标签口径与限制见 [external/](../external/) 和 [EXTERNAL_DATA.md](../docs/research/EXTERNAL_DATA.md)。
 
 模拟 p01–p22 每片段随机映射到 1–46 中 22 个不同槽位，片段内固定、不互换。
 全部槽位都有球队：24 个 H、22 个 A，每队各 11 个活动槽位；其余 24 槽位的 x/y/s 为 NaN。
