@@ -422,7 +422,7 @@ kloppy 自带的公开测试夹具（game 10517，2022-12-18，阿根廷 vs 法�
 
 ## 9. 下一步转换任务的建议范围
 
-不写代码，只给范围；建议按下面顺序，先小后大：
+本节保留当时的范围建议；第 1–3 项已实现，见本节末尾。建议顺序如下：
 
 1. **SkillCorner 单场观测转换（优先）**：`1925299` → 25 fps、141 列、46 槽位、0–1 坐标、NaN 缺失；metadata 保持 105×68、25 fps；先不生成标签。
 2. **SkillCorner 弱标签（与观测分离）**：用 `phases_of_play` 的球队作为 H/A，phase 外作为 D；对重叠 phase、phase 内无 possession、phase 外有球+球员的帧单独打“不确定”标记；不要把手动规则写成针对本场的常数。
@@ -430,6 +430,12 @@ kloppy 自带的公开测试夹具（game 10517，2022-12-18，阿根廷 vs 法�
 4. **外部标签边界审计**：在**其他比赛**上抽 5–10 分钟，人工核对 D 起止、争抢归属、换人/伤停；这是规则允许的（其他比赛可手标），但不要把本场 BAR-ATH 的任何片段放进去。审计结果只用于给弱标签加置信度/剔除边界帧。
 5. **PFF 先谈许可**：向 Gradient/PFF 或组织方确认 64 场数据是否可获取、许可是否允许比赛用途/技术文档/复核；在没有书面确认前不写 PFF 转换、不下载、不使用。
 6. **停止条件**：Metrica 许可仍不明确；SkillCorner 弱标签在边界审计中误差过大；PFF 许可/数据拿不到；任一情况下，不把外部数据升级为“真实测试集”。
+
+**已实现（2026-11-16）**：新增 [`external/`](../../external/) 转换包，把 Metrica Sample Game 1/2/3 和 SkillCorner `1925299` 转成 `outputs/simulation_sets/ext_<source>_<match>/`，命令为
+`.venv/bin/python -m external.convert --source metrica --data-dir "$PWD/data"`（把 `metrica` 换成 `skillcorner` 或 `all` 可转换另一源或全部；目录已存在时加 `--force`）。
+观测、弱标签和写出口径分别在 [`external/common.py`](../../external/common.py)、[`external/metrica.py`](../../external/metrica.py)、[`external/skillcorner.py`](../../external/skillcorner.py)；
+各数据集的帧数、缺球率、H/A/D/X 占比、外推占比和已知限制见 [`experiments/20261116_external_sets/NOTES.md`](../../experiments/20261116_external_sets/NOTES.md)。
+第 4 项（人工边界审计）和第 5 项（PFF 许可）没有做；本节不重复格式细节。
 
 ## 10. 下载、校验与复现
 

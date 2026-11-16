@@ -31,10 +31,15 @@ SWITCH_TOLERANCE = pm.TAUS[-1]          # frames; a predicted switch further awa
 
 
 def describe_switches(gt_codes, pred_codes):
-    """Compare label switches. Returns (list of plain-language lines, counts dict)."""
-    whole_clip = [(0, len(gt_codes))]
-    gt_switches = pm.transitions(gt_codes, whole_clip)
-    pred_switches = pm.transitions(pred_codes, whole_clip)
+    """Compare label switches. Returns (list of plain-language lines, counts dict).
+
+    Temporal diagnostics use the official gap-aware runs: a ground-truth X run is not
+    scored, and a predicted X run is filled inside a valid run so that abstaining does
+    not invent two transitions.
+    """
+    runs = pm.valid_runs(gt_codes)
+    gt_switches = pm.transitions(gt_codes, runs)
+    pred_switches = pm.transitions(pm.fill_abstentions(pred_codes, runs), runs)
     pairs, missed, extra = pm.match_transitions(gt_switches, pred_switches, SWITCH_TOLERANCE)
 
     lines = []                                   # (frame, text), sorted by frame at the end
@@ -67,14 +72,18 @@ def score_clip(sample, gt_labels, pred_labels):
     official = pm.evaluate(gt_codes, pred_codes)
 
     core = slice(int(sample.core_start), int(sample.core_stop))
-    core_wrong = int((gt_codes[core] != pred_codes[core]).sum())
+    # The official scorer never scores a frame whose truth is X. Keep the simulation
+    # diagnostics on the same graded set instead of charging a prediction mismatch on
+    # frames the ground truth deliberately leaves open.
+    graded = gt_codes != pm.X
+    core_wrong = int(np.sum(graded[core] & (gt_codes[core] != pred_codes[core])))
     switch_lines, switch_counts = describe_switches(gt_codes, pred_codes)
     row = {
         "clip": sample.clip, "subtype": sample.subtype, "story_id": sample.story_id,
         "initiating_team": sample.initiating_team, "n_frames": int(sample.n_frames),
         "core_frames": core.stop - core.start, "core_wrong_frames": core_wrong,
         "core_all_correct": core_wrong == 0,
-        "clip_wrong_frames": int((gt_codes != pred_codes).sum()),
+        "clip_wrong_frames": int(np.sum(graded & (gt_codes != pred_codes))),
         "spell_f1_mean": official["spell_f1_mean"], "macro_f1": official["macro_f1"],
         "true_sequence": " ".join(collapse(gt_labels)),
         "pred_sequence": " ".join(collapse(pred_labels)),
@@ -110,6 +119,8 @@ def write_report(path, experiment, dataset, rows, details):
         "## How to read this",
         "",
         "- `core` is the V1 pass mark: every frame of the tested event must be right.",
+        "- Frames whose truth is X are not scored, matching the official metric. The wrong-"
+        "frame counts and switch comparison above cover only graded (non-X) frames.",
         "- Switch timing is in frames at {} fps; a predicted switch more than {} frames from any "
         "true one of the same destination is listed as extra.".format(FPS, SWITCH_TOLERANCE),
         "- macroF1 averages F1 over H, A and D, and a class absent from a clip scores 0. A clip "

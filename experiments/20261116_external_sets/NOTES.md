@@ -1,0 +1,296 @@
+# 外部弱标签测试集（2026-11-16）
+
+本实验只做转换：把本地 `data/external/` 的 Metrica Sample Game 1/2/3 和 SkillCorner
+`1925299` 转成与 `outputs/simulation_sets/<id>/` 相同的五个文件，使现有
+`simulation.run_algorithm` 和 `simulation.evaluate` 不改逻辑即可运行。弱标签由数据商的
+事件／阶段／possession 推出，不是官方 H/A/D 真值；本文件不评价算法、不调参、不做结论。
+
+没有读取 BAR-ATH 的答案、Smart Tagging 或公开窗口评分；只使用了 `data/external/` 下的
+其他比赛数据和 `data/tactical/` 的 XML 元信息（仅核对坐标方向，见第 4 节）。
+
+**PR 范围**：只含 `external/` 转换代码、`tests/test_external_convert.py`、本说明和
+`simulation/evaluate.py` 的 GT X 计分修正；不提交 `data/`、`outputs/` 下的任何原始数据、
+转换结果、预测或报告。外部弱标签只用于诊断，不能替代官方 H/A/D 真值。
+
+## 1. 产物与代码
+
+| 内容 | 位置 |
+|---|---|
+| 转换命令 | `python -m external.convert --source metrica`（或 `skillcorner` / `all`） |
+| 共用写出与槽位/速度/上采样 | [`external/common.py`](../../external/common.py) |
+| Metrica 读取、事件与弱标签 | [`external/metrica.py`](../../external/metrica.py) |
+| SkillCorner 读取、phase 与弱标签 | [`external/skillcorner.py`](../../external/skillcorner.py) |
+| 命令行入口 | [`external/convert.py`](../../external/convert.py) |
+| 单元测试 | [`tests/test_external_convert.py`](../../tests/test_external_convert.py) |
+| 生成的数据集 | `outputs/simulation_sets/ext_metrica_game_1/`、`..._game_2`、`..._game_3`、`ext_skillcorner_1925299/` |
+
+每个数据集两个 clip：`first_half` 和 `second_half`。本地 `data/external/skillcorner/` 只有
+`1925299` 一场完整数据，因此只生成一个 SkillCorner 数据集；扫描目录时发现更多比赛会自动一并转换。目录名固定，重复转换同一目录需要
+`--force`；原始数据和转换结果都在 `.gitignore` 的 `data/*`、`outputs/*` 规则下，不进 Git。
+
+## 2. 各数据集规模、缺球率与标签占比
+
+| 数据集 | 两半 frame 数 | 总 frame | 缺球 frame | H | A | D | X |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `ext_metrica_game_1` | 71,268 / 73,738 | 145,006 | 56,755（39.14%） | 43,028（29.67%） | 41,931（28.92%） | 57,115（39.39%） | 2,932（2.02%） |
+| `ext_metrica_game_2` | 67,941 / 73,215 | 141,156 | 57,884（41.01%） | 47,589（33.71%） | 39,896（28.26%） | 52,629（37.28%） | 1,042（0.74%） |
+| `ext_metrica_game_3` | 69,661 / 74,100 | 143,761 | 46,325（32.22%） | 53,119（36.95%） | 49,056（34.12%） | 40,523（28.19%） | 1,063（0.74%） |
+| `ext_skillcorner_1925299` | 75,576 / 77,626 | 153,202 | 33,480（21.85%） | 53,378（34.84%） | 33,600（21.93%） | 63,661（41.55%） | 2,563（1.67%） |
+
+Metrica 的 X 现在只剩半场首尾（Game 1/2/3 分别为 2,932 / 1,042 / 1,063 frame），没有
+犯规窗口 X；SkillCorner 的 2,563 个 X 中 969 frame 来自重叠 phase，1,594 frame 来自
+phase 内没有球员追踪。
+
+### 2.1 长段缺球与事件顺序规则
+
+“长段缺球”指连续球坐标缺失超过 5 s（>125 frame）。旧规则（只处理 BALL OUT、进球和
+10 s 犯规窗口）下，长段缺球中被标成 H/A 的比例为 **44.1% / 49.5% / 36.5%**
+（Game 1/2/3）；改成事件顺序规则，并排除 RECOVERY、把含 GOAL KICK 的 PASS 都当作
+restart 后，降为 **12.4% / 15.9% / 16.2%**：
+
+| 场次 | >5 s 缺球段 | 长段 frame | H/A | D | X | H/A 占比 |
+|---|---:|---:|---:|---:|---:|---:|
+| Game 1 | 85 | 55,462 | 6,860 | 45,670 | 2,932 | 12.37% |
+| Game 2 | 84 | 55,880 | 8,894 | 46,128 | 858 | 15.92% |
+| Game 3 | 91 | 44,898 | 7,264 | 36,638 | 996 | 16.18% |
+
+剩余活球长段的前后事件（按长段前最后一个事件 / 长段结束后第一个事件统计）：
+
+| 场次 | 剩余活球段 | 长段前最后事件 | 长段结束后第一个事件 |
+|---|---:|---|---|
+| Game 1 | 20 | FAULT RECEIVED 7、BALL OUT 4、SHOT OUT 4、BALL LOST FORCED/OFFSIDE/THEFT/HEAD-INTERCEPTION 各 1、非犯规 CHALLENGE 1 | PASS 10、RECOVERY 7、SET PIECE FREE KICK 2、BALL LOST INTERCEPTION 1 |
+| Game 2 | 22 | BALL LOST FORCED 4、BALL OUT 4、FAULT RECEIVED 3、BALL LOST HAND BALL 3、BALL LOST INTERCEPTION 2、SHOT OUT 1、其他 5 | PASS 6、RECOVERY 5、SET PIECE FREE KICK 5、SET PIECE KICK OFF 2、其他 4 |
+| Game 3 | 14 | BALL LOST FORCED 5、CARRY 4、BALL LOST OFFSIDE 2、BALL LOST HAND BALL 2、非犯规 CHALLENGE 1 | SET PIECE FREE KICK\|INDIRECT 10、RECOVERY 3、SET PIECE THROW IN 1 |
+
+Game 1/2 中仍以 FAULT RECEIVED / BALL OUT / SHOT OUT 开头的活球长段，都是因为停顿事件
+之后、下一个 restart 之前又出现了 PASS / CARRY（有利或数据商事件未对齐），所以规则没有
+把它改成 D；RECOVERY 不再算活球，因此这类剩余段明显减少。Game 3 剩余活球段主要从
+BALL LOST FORCED、BALL LOST OFFSIDE/HAND BALL、CARRY 和非犯规 CHALLENGE 开始；这些
+事件不在本次指定的停顿事件列表里，因此保留活球，且多数在下一个 SET PIECE 处结束。
+Game 3 的 D 占比 28.19%，与当前规则和剩余事件类型一致；没有为了凑数追加事件类型或
+单场常数。
+
+缺球率与调研一致（Metrica 32–41%，SkillCorner 约 22%）；SkillCorner 上采样后为
+153,202 frame，约等于 61,282 × 2.5。每 clip 的缺球率：
+
+- Game 1：上半 42.67%，下半 35.73%
+- Game 2：上半 28.57%，下半 52.54%
+- Game 3：上半 31.74%，下半 32.67%
+- SkillCorner：上半 20.98%，下半 22.71%
+
+SkillCorner 的上采样只在两个原始帧都有值时线性插值；任一端缺失保持 NaN。整帧无球员的
+转播缺口保持全 NaN。上采样后全表只有两种状态：119,722 frame 有 22 名球员，33,480 frame
+有 0 名球员且球也缺失；没有半帧。标签按最近原始帧映射，因此边界量化到 0.1 s。
+
+## 3. 观测格式与速度
+
+四个数据集都是每半场一个 clip、clip 内 `frame=0..n-1`、25 fps、142 列、46 槽位
+（24 H / 22 A，slot 1–24 为 H、25–46 为 A），metadata 全部 46 键都有球队，球场
+105 × 68 m。每名球员固定映射到本队一个槽位，未使用槽位全 NaN。坐标保持 0–1 归一化，
+场外值不裁切，缺失保持 NaN，不插值补缺。球 z、球员身份和事件都不进观测。
+
+| 数据集 | 每帧最多 H/A 槽位 | 某队 12 个位置的 frame 数 | 速度 P99 / 最大 / >10 m/s | 坐标有限值范围（x 与 y 合计） |
+|---|---:|---:|---:|---:|
+| Game 1 | 12 / 12 | H 3，A 3 | 6.22 / 557.03 / 745 | −0.0500 .. 1.0600 |
+| Game 2 | 12 / 12 | H 3，A 1 | 6.05 / 182.05 / 1,447 | −0.0497 .. 1.0500 |
+| Game 3 | 11 / 11 | 0 / 0 | 6.02 / 53.42 / 1,271 | −0.0779 .. 1.0414 |
+| SkillCorner | 11 / 11 | 0 / 0 | 6.00 / 12.08 / 61 | −0.1025 .. 1.0869 |
+
+- P99 均低于 10 m/s，符合预期。最大速度异常全部保留、没有裁切：Game 1 的 557 m/s 来自
+  下半场开头几帧同一槽位的连续位置跳变（frame 10–14，slot 3）；Game 2 的 182 m/s 来自
+  下半场开头 slot 25 的跳变；Game 3 与 SkillCorner 的最大值也是单帧/短段跳变。这些是原始
+  追踪或外推造成的，不是转换公式造成的；速度只在相邻帧都有位置时计算。
+- Metrica 1/2 的 14/12 名 roster 球员中，每帧通常 11 人有位置。少数帧出现 12 个有限位置，
+  检查后第 12 个位置与另一槽位坐标完全相同，是重复检测/重复列，不是额外上场球员；按原始
+  数据保留，所以这些 frame 的“有位置槽位数”为 12。Game 3 和 SkillCorner 每队最多 11。
+- 场外坐标值计数（x 或 y 超出 [0,1]，按所有球员坐标合计）：Game 1 31,012、Game 2
+  21,364、Game 3 23,423、SkillCorner 15,785；没有裁切。
+
+## 4. 坐标方向核对
+
+真实 ATD 是 Metrica EPTS，`observations/atd.py` 通过 kloppy EPTS 读取，坐标系统为
+kloppy 的归一化系统：原点在左上、y 向下。用与 `observations/atd.py` 相同的 kloppy
+EPTS 元信息路径检查 ATD：provider=`metrica`、fps=25、pitch=105×68；对应的
+`MetricaCoordinateSystem` 为 `origin=top-left`、`vertical=TOP_TO_BOTTOM`。本转换遵守
+同一方向：
+
+- **Metrica Game 3**：直接用 kloppy EPTS（和 `observations/atd.py` 同一加载路径），
+  不做翻转。用 Game 3 自己的 XML 元信息核对：Team A 上半场 `attack_direction_first_half`
+  为 `right_to_left`，其 Right Back（formation `position_y=0.9`）在开球帧的原始 y≈0.19；
+  Team B 为 `left_to_right`，其 Right Back（同样 `position_y=0.9`）在原始 y≈0.79。这只有
+  在“原点左上、y 向下”时才能同时成立。由此确认 EPTS 原始 y 与 ATD 的 y 方向一致。
+- **Metrica Game 1/2**：数据商 README 明确写 `(0,0)` 左上、`(1,1)` 右下。这里保留 CSV 的
+  原始 y，不采用 kloppy Metrica CSV loader 的 `y=1-y` 翻转；这样 CSV 两场与 EPTS/ATD 的
+  左上、y 向下约定一致。原始 CSV 的 ball/player 坐标与同一场的事件坐标也一致（事件坐标
+  使用原始 CSV 坐标）。
+- **SkillCorner**：原始数据是米制、球场中心原点、y 从下到上；转换为
+  `x=(x+L/2)/L`、`y=(W/2−y)/W`，即左上、y 向下。用 kloppy 的 SkillCorner loader 在
+  原始 frame 10 对照，球坐标完全一致（归一化后 `(0.493714, 0.491471)`），确认转换公式与
+  kloppy/ATD 的目标坐标系统一致。
+
+半场换边核对（每队所有有限球员 x 的均值）：
+
+| 数据集 | 上半场 H / A 平均 x | 下半场 H / A 平均 x | 是否换边 |
+|---|---:|---:|---|
+| Game 1 | 0.4735 / 0.6017 | 0.5828 / 0.4583 | 是 |
+| Game 2 | 0.5558 / 0.4256 | 0.4204 / 0.5456 | 是 |
+| Game 3 | 0.5592 / 0.4237 | 0.4787 / 0.6058 | 是 |
+| SkillCorner | 0.5356 / 0.4106 | 0.5077 / 0.6341 | 是 |
+
+四组数据的 H/A 平均 x 差都在上下半场变号；没有按进攻方向翻转坐标，换边来自原始数据本身。
+
+## 5. 弱标签规则
+
+### 5.1 Metrica（三场统一规则）
+
+- **D（事件顺序）**：停顿开始事件包括 `BALL OUT`、subtype 含 `OUT` 的 `SHOT`、
+  `FAULT RECEIVED`、`CARD`、subtype 含 `FAULT` 的 `CHALLENGE`。从该事件的 `start`
+  到下一个 restart 的 `start`（左闭右开），只有在停顿事件 `end` 之后、restart 之前
+  没有任何活球事件（`PASS`、`CARRY`、未出界的 `SHOT`）时，才标 D；中间有活球事件
+  表示有利或原停顿不成立，保留 H/A。**`RECOVERY` 不算活球事件**：死球时捡球也会被
+  记成 RECOVERY，三场分别有 22/63、20/60、12/70 次出界死球被它整段取消；但 RECOVERY
+  仍然可以切换 H/A（见下一条）。
+- **restart**：`SET PIECE`，或 subtype **包含** `GOAL KICK` 的 `PASS`——数据商把
+  球门球和“被拦截的球门球”都编码成 PASS（Game 1/2/3 都是），它们应该结束前一段 D，
+  而不是作为活球取消 D。D 区间合并。
+- **进球**：保持原规则，`SHOT` subtype 含 `GOAL` 时从射门 `end+1` 到下一次
+  `KICK OFF` 的 `start`。
+- **X**：只剩半场首尾——半场开始到第一次 `KICK OFF` 之前；该半场最后一个事件的
+  `end` 之后。没有可用的终场哨事件，因此“终场之后”用最后一个事件结束来近似。
+  没有 10 s 犯规窗口，也没有犯规窗口产生的 X。
+- **H/A**：最近一次 `PASS`、`CARRY`、`RECOVERY`、`SHOT` 或 `SET PIECE` 的球队；事件
+  之间沿用该队。RECOVERY 仍按这条规则切换球队，只是不取消 D。`BALL LOST`、
+  `CHALLENGE` 不直接切换球队。
+- 优先级：半场首尾的 X 最高；D 覆盖 H/A；没有其他 X。
+- `events.csv` 写出推导用到的类型：上述五类切换事件、`BALL OUT`、`SHOT`、
+  `FAULT RECEIVED`、`CARD`，以及 subtype 含 `FAULT` 的 `CHALLENGE`；非犯规
+  `CHALLENGE` 和 `BALL LOST` 不写。`event` 写成“类型 + subtype”，`t=frame/25`。
+
+### 5.2 SkillCorner
+
+- 一帧落在唯一 phase 内且有球员追踪 → 该 phase 的 `team_in_possession_id`（主队 1802
+  → H，客队 871 → A）。
+- 一帧不在任何 phase 内 → D。phase 只在球在场上时定义；这类帧即使同时没有球员/球追踪
+  也仍是 D，因为数据商已经用 phase 的补集说明它不在活球内。SkillCorner 的 33,480 个
+  无球员 frame 绝大多数属于这一类。
+- 一帧在唯一 phase 内但没有球员追踪 → X（phase 说活球，坐标无法确认球队）。
+- 多个 phase 覆盖同一帧 → X。phase 区间按 `frame_start..frame_end` 闭区间计，连续 phase
+  共享端点也算重叠；这是 2,563 个 X frame 的主要来源，并造成 phase 边界处的 X 闪烁。
+- `events.csv` 写出所有与半场相交的 phase（start 映射到最近的 25 fps frame），不写
+  `dynamic_events`——标签推导没有用后者。
+
+### 5.3 X 的计分
+
+`simulation.evaluate` 原有官方指标 `possession_metrics.evaluate` 本来就不对 GT 为 X 的
+帧计分；但 `score_clip` 自己的 `core_wrong_frames` / `clip_wrong_frames` 和
+`describe_switches` 原先把 GT X 也算进差异。已做最小修改：错误帧只统计 GT 非 X 的帧，
+switch 只在官方 `valid_runs` 内比较，predict 的 X 在 run 内按官方 `fill_abstentions`
+处理。`tests/test_external_convert.py` 覆盖“只错在 X 上仍算通过”和“X 帧不增加错误数”。
+没有 X 的模拟数据集行为不变。
+
+## 6. SkillCorner 外推位置占比
+
+`is_detected=false` 的球员位置照常保留。按原始 10 fps 的球员-帧计数：
+
+- 上半场 44.91%，下半场 39.35%，合计 **42.09%**（与调研的 42.12% 同量级）。
+- 上采样到 25 fps 后，按输出球员-帧计，凡插值任一端为外推即计入：上半场 45.25%，
+  下半场 39.66%，合计 **42.42%**。
+- 外推位置会产生 12.08 m/s 的最大速度和 61 个 >10 m/s 的样本；P99 仍为 6.00 m/s。
+
+## 7. 算法可运行性（只记录，不解释）
+
+两个现有算法都在四个数据集上跑完并生成 `per_clip.csv` / `report.md`，没有报错。使用已有
+实验配置，没有修改算法、配置或已完成实验：
+
+- `20261108_sustained_control_final`（`sustained_control`）
+- `20261111_dead_ball_trusted_tags`（`dead_ball_aware`，不传 tags，走无标签坐标分支；
+  2026-11-16 同步到 main `38c3fdb` 后重跑）
+
+| 实验 | 数据集 | spellF1 上半/下半 | macroF1 上半/下半 |
+|---|---|---:|---:|
+| sustained_control | Game 1 | 0.5055 / 0.4502 | 0.6783 / 0.6678 |
+| sustained_control | Game 2 | 0.5801 / 0.4878 | 0.7558 / 0.7215 |
+| sustained_control | Game 3 | 0.5573 / 0.4797 | 0.7999 / 0.8402 |
+| sustained_control | SkillCorner | 0.6108 / 0.6326 | 0.7203 / 0.7519 |
+| dead_ball_aware（无标签） | Game 1 | 0.5728 / 0.6025 | 0.7731 / 0.8908 |
+| dead_ball_aware（无标签） | Game 2 | 0.6418 / 0.6140 | 0.8624 / 0.8371 |
+| dead_ball_aware（无标签） | Game 3 | 0.5739 / 0.5632 | 0.8464 / 0.8608 |
+| dead_ball_aware（无标签） | SkillCorner | 0.6194 / 0.6379 | 0.8161 / 0.8212 |
+
+8 个 clip 等权平均的补充诊断（per-class F1 也是先按 clip 算再平均，不是把两半合成一个混淆矩阵）：
+
+| 算法 | spellF1 | macroF1 | alive/dead F1 | H F1 | A F1 | D F1 |
+|---|---:|---:|---:|---:|---:|---:|
+| sustained_control | 0.538 | 0.742 | 0.853 | 0.775 | 0.764 | 0.687 |
+| dead_ball_aware（无标签） | 0.603 | 0.839 | 0.909 | 0.839 | 0.818 | 0.859 |
+
+按数据源平均：
+
+| 算法 | 源 | spellF1 | macroF1 | alive/dead F1 | D F1 |
+|---|---|---:|---:|---:|---:|
+| sustained_control | Metrica | 0.510 | 0.744 | 0.856 | 0.678 |
+| sustained_control | SkillCorner | 0.622 | 0.736 | 0.844 | 0.716 |
+| dead_ball_aware（无标签） | Metrica | 0.595 | 0.845 | 0.912 | 0.857 |
+| dead_ball_aware（无标签） | SkillCorner | 0.629 | 0.819 | 0.899 | 0.863 |
+
+这些分数只说明链路能跑通。弱标签由不同数据商的事件/phase 推出，和官方 H/A/D 定义不同，
+不能与模拟集或官方分数比较，也不能据此选算法或调参。
+
+这批分数来自 main `38c3fdb`，并且 Metrica 弱标签已改成事件顺序规则；它不能和旧规则下
+的分数直接逐项比较。`dead_ball_aware` 无标签分支在 Metrica 上的 D F1 从旧规则的约
+0.61–0.68 回升到 0.85–0.86，但这是弱标签上的诊断，不是算法结论。最新提交的 tag
+ownership 改动仍只影响传入 tags 的分支；外部数据没有 Smart Tagging，无法验证。评分使用
+同一批 `ext_*` 数据集，未重新生成观测或答案。
+
+## 8. 已知限制
+
+1. **弱标签不是官方真值**。Metrica 没有 `ball_state`/`possession`，SkillCorner phase 与
+   possession 在约 14.8% 的重叠帧上不一致；本转换没有解决这个分歧，只按 phase 取球队。
+2. **Metrica 事件不完整，事件顺序规则只能近似有利/哨声**：规则没有 advantage 或 whistle
+   字段，只能看停顿事件 `end` 之后、restart 之前有没有 `PASS`/`CARRY`/未出界 `SHOT`；
+   数据商漏记或多记事件会改变判断。`RECOVERY` 被排除在活球事件之外，因为死球时捡球也会
+   被记成 RECOVERY；它仍然按 H/A 切换规则切换球队。剩余 >5 s 缺球里仍被标成活球的段，
+   主要从 `BALL LOST FORCED`、`BALL LOST OFFSIDE/HAND BALL`、`CARRY`、非犯规
+   `CHALLENGE` 开始，这些不在本次指定的停顿事件列表内，且多数在下一个 `SET PIECE` 处
+   结束；Game 3 的 D 因此为 28.19%，与当前规则一致。球门球和“被拦截的球门球”都被数据商
+   编码成 subtype 含 `GOAL KICK` 的 `PASS`，这里都按 restart 处理（否则会把前面整段 D
+   错误取消或错误变成活球）。
+3. **Metrica H/A 是事件滞后代理**：只取最近一次切换事件，不区分控制、争抢、松散球；
+   `BALL LOST`/`CHALLENGE` 被有意忽略。事件覆盖不到的帧沿用上一队，可能把活球/死球
+   边界附近标错。
+4. **Metrica 1/2 的重复位置**：14/12 列 roster 偶尔给出 12 个有限位置，第 12 个是另一
+   槽位的重复坐标；按原始数据保留，不是真实 12 人。槽位映射按球衣号固定到本队槽位，
+   不能复现真实 ATD 的同槽换人/身份切换。
+5. **缺球不插值**：Metrica 保留原始 NaN；SkillCorner 只在线性插值的两端都有值时补中间，
+   任一端缺失保持 NaN。速度用相邻 25 fps 帧差分，SkillCorner 的插值会让速度更平滑；
+   外推位置和原始追踪跳变会产生 >10 m/s 的异常，全部保留、没有裁切。
+6. **SkillCorner 的边界**：10→25 fps 上采样把标签边界量化到 0.1 s；phase 闭区间共享
+   端点被算作重叠，导致每个 phase 边界有 2–3 个 X frame；无球员 frame 全部 NaN；死球
+   期间球通常还在，缺球和 D 不能互相替代。
+7. **坐标方向是转换约定**：Metrica 1/2 采用 CSV 原始 y（左上、向下），没有采用 kloppy
+   Metrica CSV loader 的翻转；这是为了与 EPTS/ATD 一致，不是数据商 CSV 的唯一可能解释。
+8. **没有做人工边界审计**（调研任务第 4 项）；没有获取或使用 PFF 数据（第 5 项）。
+   Metrica 的许可仍不明确；这些数据集只在本地作为诊断用，不应公开再分发。
+9. `core_start=0`、`core_stop=n_frames`：外部数据没有模拟故事的核心窗口，所以“core”就是
+   整个 clip；`initiating_team` 填第一个 H/A 标签，仅用于兼容报告；“expected_sequence”
+   是弱标签的压缩序列。它们都不是官方窗口或官方先验。
+
+## 9. 复现
+
+```bash
+# 转换（固定目录；已存在时加 --force）
+.venv/bin/python -m external.convert --source metrica --data-dir "$PWD/data"
+.venv/bin/python -m external.convert --source skillcorner --data-dir "$PWD/data"
+# 或一次转换全部
+.venv/bin/python -m external.convert --source all --data-dir "$PWD/data" --force
+
+# 运行并评分（两个算法 × 四个数据集；示例）
+bash scripts/run_simulation.sh 20261108_sustained_control_final ext_metrica_game_3
+bash scripts/run_simulation.sh 20261111_dead_ball_trusted_tags ext_metrica_game_3
+
+# 全部单元测试
+.venv/bin/python -m unittest discover -s tests
+```
+
+本地 `data/external/SHA256SUMS` 记录原始文件校验值。原始数据和 `outputs/` 下的转换结果、
+预测和报告都不进 Git。
