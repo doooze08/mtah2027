@@ -10,18 +10,24 @@ Three games are supported with one label rule set:
 Weak labels (from vendor events only; tracking coordinates are never used to decide
 dead/alive):
 
-* ``D``: ``BALL OUT`` start until the next ``SET PIECE`` start; a goal (``SHOT`` whose
-  subtype contains ``GOAL``) from the frame after the shot ends until the next
-  ``KICK OFF``.
-* ``X``: after ``FAULT RECEIVED`` or ``CARD``, when a ``SET PIECE`` starts within a
-  fixed 10 s window, the frames in between are X rather than forced D or live. Ten
-  seconds is the short-window draft in ``docs/research/EXTERNAL_DATA.md`` section 3.5;
-  it covers the clear foul-to-restart pairs (about 4-9 s in these games) and leaves the
-  known 53.9 s fault-to-set-piece counterexample as live, per the "advantage" rule.
-  Also X from the start of a half to the first kickoff and after the last event.
+* ``D`` by event order. A stoppage starts at ``BALL OUT``, at a ``SHOT`` whose subtype
+  contains ``OUT``, at ``FAULT RECEIVED``, at ``CARD``, or at a ``CHALLENGE`` whose
+  subtype contains ``FAULT``. From that start to the next restart, the frames are D
+  only when no live event (``PASS``, ``CARRY``, ``RECOVERY``, or a ``SHOT`` that is not
+  out) starts after the stoppage event and before the restart; a live event in between
+  is treated as advantage and the stoppage does not produce D. A restart is a
+  ``SET PIECE``, or a ``PASS`` whose subtype is exactly ``GOAL KICK`` (the vendor
+  encodes goal kicks as passes; ``GOAL KICK-INTERCEPTION`` remains a live event). A
+  goal (``SHOT`` subtype contains ``GOAL``) keeps the original rule: from the frame
+  after the shot ends until the next ``KICK OFF``.
+* ``X`` only from the start of a half to the first kickoff and after the last event.
+  There is no fixed foul window: a foul 30 s before the free kick is still D when no
+  live event separates them.
 * ``H``/``A``: the team of the most recent ``PASS``, ``CARRY``, ``RECOVERY``,
   ``SHOT`` or ``SET PIECE``; the side persists between events. ``BALL LOST`` and
   ``CHALLENGE`` do not switch the side.
+
+Ball gaps and tracking coordinates never decide D; they are only observations.
 
 Coordinates are never flipped by attacking direction. Games 1/2 keep the vendor's raw
 top-left 0-1 y (the sample-data README's convention, and the same convention as the
@@ -50,10 +56,9 @@ from external.common import (
 )
 
 SWITCH_TYPES = frozenset({"PASS", "CARRY", "RECOVERY", "SHOT", "SET PIECE"})
-FAULT_TYPES = frozenset({"FAULT RECEIVED", "CARD"})
-OUTPUT_TYPES = frozenset(SWITCH_TYPES | FAULT_TYPES | {"BALL OUT"})
-FAULT_WINDOW_S = 10.0
-FAULT_WINDOW_FRAMES = int(round(FAULT_WINDOW_S * FPS))
+LIVE_TYPES = frozenset({"PASS", "CARRY", "RECOVERY"})
+DIRECT_STOPPAGE_TYPES = frozenset({"BALL OUT", "FAULT RECEIVED", "CARD"})
+OUTPUT_TYPES = frozenset(SWITCH_TYPES | {"BALL OUT", "FAULT RECEIVED", "CARD"})
 PITCH_LENGTH = 105.0
 PITCH_WIDTH = 68.0
 
@@ -238,8 +243,54 @@ def _next_event(events, after, predicate):
     return min(candidates, key=lambda event: (event.start, event.index)) if candidates else None
 
 
-def derive_labels(n_frames, events, fault_window_frames=FAULT_WINDOW_FRAMES):
-    """H/A/D/X per frame from Metrica events and the fixed rules in the module docstring.
+def _is_goal(event):
+    return event.event_type == "SHOT" and "GOAL" in event.subtype
+
+
+def _is_shot_out(event):
+    return event.event_type == "SHOT" and "OUT" in event.subtype
+
+
+def _is_challenge_fault(event):
+    return event.event_type == "CHALLENGE" and "FAULT" in event.subtype
+
+
+def _is_goal_kick_pass(event):
+    # The vendor encodes a goal kick as PASS/GOAL KICK rather than SET PIECE.
+    return event.event_type == "PASS" and event.subtype.strip() == "GOAL KICK"
+
+
+def _is_restart(event):
+    return event.event_type == "SET PIECE" or _is_goal_kick_pass(event)
+
+
+def _is_stoppage_start(event):
+    """Vendor events that can start a stoppage under the event-order rule."""
+    return (event.event_type in DIRECT_STOPPAGE_TYPES
+            or _is_shot_out(event)
+            or _is_challenge_fault(event))
+
+
+def _is_live_event(event):
+    """Events that mean play continued and therefore cancel the preceding stoppage."""
+    return ((event.event_type in LIVE_TYPES and not _is_goal_kick_pass(event))
+            or (event.event_type == "SHOT" and not _is_shot_out(event)))
+
+
+def _has_live_event_between(events, start_event, stop):
+    """True when a live event starts after the stoppage event ends and before ``stop``."""
+    for event in events:
+        if not _is_live_event(event):
+            continue
+        if event.start <= start_event.end:
+            continue
+        if event.start < stop:
+            return True
+    return False
+
+
+def derive_labels(n_frames, events):
+    """H/A/D/X per frame from Metrica events and the event-order rules in the docstring.
 
     ``events`` use clip-relative frames and inclusive ends. This function is pure so the
     rule tests can use tiny hand-written event lists.
@@ -265,37 +316,32 @@ def derive_labels(n_frames, events, fault_window_frames=FAULT_WINDOW_FRAMES):
             labels[frame] = current
 
     dead = np.zeros(n_frames, dtype=bool)
-    set_pieces = sorted(
-        (event for event in events if event.event_type == "SET PIECE"),
+    restarts = sorted(
+        (event for event in events if _is_restart(event)),
         key=lambda event: (event.start, event.index),
     )
     for event in events:
-        if event.event_type == "BALL OUT":
-            next_piece = _next_event(set_pieces, event.start, lambda item: True)
-            stop = next_piece.start if next_piece is not None else n_frames
-            dead[event.start:stop] = True
-        elif event.event_type == "SHOT" and "GOAL" in event.subtype:
+        if _is_goal(event):
             next_kickoff = _next_event(
-                set_pieces, event.end,
+                restarts, event.end,
                 lambda item: "KICK OFF" in item.subtype)
             stop = next_kickoff.start if next_kickoff is not None else n_frames
             dead[event.end + 1:stop] = True
+    for event in events:
+        if not _is_stoppage_start(event):
+            continue
+        next_piece = _next_event(restarts, event.start, lambda item: True)
+        stop = next_piece.start if next_piece is not None else n_frames
+        if stop <= event.start:
+            continue
+        # A live event in between means the referee played advantage (or the stoppage
+        # was not real); leave the H/A stream untouched.
+        if not _has_live_event_between(events, event, stop):
+            dead[event.start:stop] = True
     labels[dead] = "D"
 
-    uncertain = np.zeros(n_frames, dtype=bool)
-    for event in events:
-        if event.event_type not in FAULT_TYPES:
-            continue
-        next_piece = _next_event(set_pieces, event.end, lambda item: True)
-        if next_piece is None:
-            continue
-        gap = next_piece.start - event.end
-        if 0 <= gap <= fault_window_frames:
-            uncertain[event.end + 1:next_piece.start] = True
-    labels[uncertain] = "X"
-
-    # Half boundaries are not inferable from events; before the first kickoff and after
-    # the last event the label is deliberately X rather than a guess.
+    # Half boundaries are not inferable from the events; before the first kickoff and
+    # after the last event the label is deliberately X rather than a guess.
     kickoffs = [event for event in events if event.event_type == "SET PIECE"
                 and "KICK OFF" in event.subtype]
     if kickoffs:
@@ -337,7 +383,7 @@ def _clip_events(events, period, first_frame, n_frames):
 def _event_rows(clip_id, events):
     rows = []
     for event in events:
-        if event.event_type not in OUTPUT_TYPES:
+        if event.event_type not in OUTPUT_TYPES and not _is_challenge_fault(event):
             continue
         rows.append({
             "clip": clip_id,

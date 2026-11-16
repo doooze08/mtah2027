@@ -133,7 +133,7 @@ class MetricaLabelTest(unittest.TestCase):
         self.assertEqual(labels[15], "H")
         self.assertEqual(labels[16], "X")
 
-    def test_fault_within_window_is_x_not_forced_dead(self):
+    def test_fault_to_set_piece_is_dead(self):
         events = [
             Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
             Event(1, "PASS", "", 1, 1, "H"),
@@ -141,13 +141,13 @@ class MetricaLabelTest(unittest.TestCase):
             Event(3, "SET PIECE", "FREE KICK", 20, 20, "A"),
         ]
         labels = self._labels(25, events)
-        self.assertEqual(labels[10], "H")               # fault itself does not switch
-        self.assertEqual(labels[11], "X")
-        self.assertEqual(labels[19], "X")
+        self.assertEqual(labels[9], "H")
+        self.assertEqual(labels[10], "D")               # stoppage start is included
+        self.assertEqual(labels[19], "D")
         self.assertEqual(labels[20], "A")
         self.assertEqual(labels[21], "X")
 
-    def test_fault_outside_window_is_live(self):
+    def test_fault_30s_before_set_piece_is_still_dead(self):
         events = [
             Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
             Event(1, "PASS", "", 1, 1, "H"),
@@ -155,10 +155,97 @@ class MetricaLabelTest(unittest.TestCase):
             Event(3, "SET PIECE", "FREE KICK", 300, 300, "A"),
         ]
         labels = self._labels(310, events)
-        self.assertEqual(labels[11], "H")
-        self.assertEqual(labels[299], "H")
+        self.assertEqual(labels[9], "H")
+        self.assertEqual(labels[10], "D")
+        self.assertEqual(labels[299], "D")
         self.assertEqual(labels[300], "A")
         self.assertEqual(labels[301], "X")
+
+    def test_fault_then_pass_is_advantage_not_dead(self):
+        events = [
+            Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
+            Event(1, "PASS", "", 1, 1, "H"),
+            Event(2, "FAULT RECEIVED", "", 10, 10, "H"),
+            Event(3, "PASS", "", 20, 20, "A"),
+            Event(4, "SET PIECE", "FREE KICK", 30, 30, "A"),
+        ]
+        labels = self._labels(40, events)
+        self.assertEqual(labels[10], "H")               # no D: a live event follows
+        self.assertEqual(labels[19], "H")
+        self.assertEqual(labels[20], "A")
+        self.assertEqual(labels[29], "A")
+        self.assertEqual(labels[30], "A")
+        self.assertEqual(labels[31], "X")
+
+    def test_shot_out_to_set_piece_is_dead(self):
+        events = [
+            Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
+            Event(1, "PASS", "", 1, 1, "H"),
+            Event(2, "SHOT", "OFF TARGET|OUT", 10, 12, "H"),
+            Event(3, "SET PIECE", "THROW IN", 20, 20, "A"),
+            Event(4, "PASS", "", 20, 20, "A"),
+        ]
+        labels = self._labels(30, events)
+        self.assertEqual(labels[9], "H")
+        self.assertEqual(labels[10], "D")
+        self.assertEqual(labels[19], "D")
+        self.assertEqual(labels[20], "A")
+
+    def test_shot_on_target_does_not_start_stoppage(self):
+        events = [
+            Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
+            Event(1, "PASS", "", 1, 1, "H"),
+            Event(2, "SHOT", "ON TARGET|SAVED", 10, 12, "H"),
+            Event(3, "SET PIECE", "GOAL KICK", 20, 20, "A"),
+            Event(4, "PASS", "", 20, 20, "A"),
+        ]
+        labels = self._labels(30, events)
+        self.assertEqual(labels[10], "H")               # a non-out shot is live
+        self.assertEqual(labels[19], "H")
+        self.assertEqual(labels[20], "A")
+
+    def test_pass_goal_kick_is_a_restart_not_live(self):
+        events = [
+            Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
+            Event(1, "PASS", "", 1, 1, "H"),
+            Event(2, "BALL OUT", "", 10, 12, "H"),
+            Event(3, "PASS", "GOAL KICK", 20, 20, "A"),
+            Event(4, "PASS", "", 21, 21, "A"),
+        ]
+        labels = self._labels(30, events)
+        self.assertEqual(labels[9], "H")
+        self.assertEqual(labels[10], "D")
+        self.assertEqual(labels[19], "D")
+        self.assertEqual(labels[20], "A")               # goal kick is the restart
+        self.assertEqual(labels[21], "A")
+
+    def test_goal_kick_interception_is_live(self):
+        events = [
+            Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
+            Event(1, "PASS", "", 1, 1, "H"),
+            Event(2, "BALL OUT", "", 10, 12, "H"),
+            Event(3, "PASS", "GOAL KICK-INTERCEPTION", 20, 20, "A"),
+            Event(4, "SET PIECE", "THROW IN", 30, 30, "A"),
+        ]
+        labels = self._labels(40, events)
+        self.assertEqual(labels[10], "H")               # live pass cancels the D
+        self.assertEqual(labels[19], "H")
+        self.assertEqual(labels[20], "A")
+        self.assertEqual(labels[30], "A")
+
+    def test_challenge_fault_to_set_piece_is_dead(self):
+        events = [
+            Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
+            Event(1, "PASS", "", 1, 1, "H"),
+            Event(2, "CHALLENGE", "GROUND|FAULT|WON", 10, 10, "H"),
+            Event(3, "SET PIECE", "FREE KICK", 20, 20, "A"),
+            Event(4, "PASS", "", 20, 20, "A"),
+        ]
+        labels = self._labels(30, events)
+        self.assertEqual(labels[9], "H")
+        self.assertEqual(labels[10], "D")
+        self.assertEqual(labels[19], "D")
+        self.assertEqual(labels[20], "A")
 
     def test_ball_lost_and_challenge_do_not_switch(self):
         events = [
