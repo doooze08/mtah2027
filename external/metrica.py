@@ -13,13 +13,15 @@ dead/alive):
 * ``D`` by event order. A stoppage starts at ``BALL OUT``, at a ``SHOT`` whose subtype
   contains ``OUT``, at ``FAULT RECEIVED``, at ``CARD``, or at a ``CHALLENGE`` whose
   subtype contains ``FAULT``. From that start to the next restart, the frames are D
-  only when no live event (``PASS``, ``CARRY``, ``RECOVERY``, or a ``SHOT`` that is not
-  out) starts after the stoppage event and before the restart; a live event in between
-  is treated as advantage and the stoppage does not produce D. A restart is a
-  ``SET PIECE``, or a ``PASS`` whose subtype is exactly ``GOAL KICK`` (the vendor
-  encodes goal kicks as passes; ``GOAL KICK-INTERCEPTION`` remains a live event). A
-  goal (``SHOT`` subtype contains ``GOAL``) keeps the original rule: from the frame
-  after the shot ends until the next ``KICK OFF``.
+  only when no live event (``PASS``, ``CARRY``, or a ``SHOT`` that is not out) starts
+  after the stoppage event and before the restart; a live event in between is treated
+  as advantage and the stoppage does not produce D. ``RECOVERY`` is deliberately not a
+  live event: dead-ball pickups are recorded as RECOVERY too, so it must not cancel a
+  stoppage (it still switches H/A when it occurs in live play). A restart is a
+  ``SET PIECE``, or a ``PASS`` whose subtype contains ``GOAL KICK`` (the vendor encodes
+  goal kicks and intercepted goal kicks as passes). A goal (``SHOT`` subtype contains
+  ``GOAL``) keeps the original rule: from the frame after the shot ends until the next
+  ``KICK OFF``.
 * ``X`` only from the start of a half to the first kickoff and after the last event.
   There is no fixed foul window: a foul 30 s before the free kick is still D when no
   live event separates them.
@@ -56,7 +58,7 @@ from external.common import (
 )
 
 SWITCH_TYPES = frozenset({"PASS", "CARRY", "RECOVERY", "SHOT", "SET PIECE"})
-LIVE_TYPES = frozenset({"PASS", "CARRY", "RECOVERY"})
+LIVE_TYPES = frozenset({"PASS", "CARRY"})
 DIRECT_STOPPAGE_TYPES = frozenset({"BALL OUT", "FAULT RECEIVED", "CARD"})
 OUTPUT_TYPES = frozenset(SWITCH_TYPES | {"BALL OUT", "FAULT RECEIVED", "CARD"})
 PITCH_LENGTH = 105.0
@@ -256,8 +258,9 @@ def _is_challenge_fault(event):
 
 
 def _is_goal_kick_pass(event):
-    # The vendor encodes a goal kick as PASS/GOAL KICK rather than SET PIECE.
-    return event.event_type == "PASS" and event.subtype.strip() == "GOAL KICK"
+    # The vendor encodes goal kicks (including intercepted goal kicks) as PASS
+    # subtypes containing GOAL KICK rather than SET PIECE.
+    return event.event_type == "PASS" and "GOAL KICK" in event.subtype
 
 
 def _is_restart(event):

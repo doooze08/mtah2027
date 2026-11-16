@@ -219,7 +219,7 @@ class MetricaLabelTest(unittest.TestCase):
         self.assertEqual(labels[20], "A")               # goal kick is the restart
         self.assertEqual(labels[21], "A")
 
-    def test_goal_kick_interception_is_live(self):
+    def test_goal_kick_interception_is_a_restart(self):
         events = [
             Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
             Event(1, "PASS", "", 1, 1, "H"),
@@ -228,10 +228,24 @@ class MetricaLabelTest(unittest.TestCase):
             Event(4, "SET PIECE", "THROW IN", 30, 30, "A"),
         ]
         labels = self._labels(40, events)
-        self.assertEqual(labels[10], "H")               # live pass cancels the D
-        self.assertEqual(labels[19], "H")
-        self.assertEqual(labels[20], "A")
+        self.assertEqual(labels[10], "D")               # intercepted goal kick ends D
+        self.assertEqual(labels[19], "D")
+        self.assertEqual(labels[20], "A")               # goal kick is the restart
         self.assertEqual(labels[30], "A")
+
+    def test_ball_out_then_recovery_is_still_dead(self):
+        events = [
+            Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
+            Event(1, "PASS", "", 1, 1, "H"),
+            Event(2, "BALL OUT", "", 10, 12, "H"),
+            Event(3, "RECOVERY", "", 15, 15, "A"),
+            Event(4, "SET PIECE", "THROW IN", 20, 20, "A"),
+        ]
+        labels = self._labels(30, events)
+        self.assertEqual(labels[9], "H")
+        self.assertEqual(labels[10], "D")               # RECOVERY must not cancel D
+        self.assertEqual(labels[19], "D")
+        self.assertEqual(labels[20], "A")
 
     def test_challenge_fault_to_set_piece_is_dead(self):
         events = [

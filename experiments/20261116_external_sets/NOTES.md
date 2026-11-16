@@ -32,9 +32,9 @@
 
 | 数据集 | 两半 frame 数 | 总 frame | 缺球 frame | H | A | D | X |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `ext_metrica_game_1` | 71,268 / 73,738 | 145,006 | 56,755（39.14%） | 45,235（31.20%） | 44,346（30.58%） | 52,493（36.20%） | 2,932（2.02%） |
-| `ext_metrica_game_2` | 67,941 / 73,215 | 141,156 | 57,884（41.01%） | 49,859（35.32%） | 42,180（29.88%） | 48,075（34.06%） | 1,042（0.74%） |
-| `ext_metrica_game_3` | 69,661 / 74,100 | 143,761 | 46,325（32.22%） | 54,323（37.79%） | 49,109（34.16%） | 39,266（27.31%） | 1,063（0.74%） |
+| `ext_metrica_game_1` | 71,268 / 73,738 | 145,006 | 56,755（39.14%） | 43,028（29.67%） | 41,931（28.92%） | 57,115（39.39%） | 2,932（2.02%） |
+| `ext_metrica_game_2` | 67,941 / 73,215 | 141,156 | 57,884（41.01%） | 47,589（33.71%） | 39,896（28.26%） | 52,629（37.28%） | 1,042（0.74%） |
+| `ext_metrica_game_3` | 69,661 / 74,100 | 143,761 | 46,325（32.22%） | 53,119（36.95%） | 49,056（34.12%） | 40,523（28.19%） | 1,063（0.74%） |
 | `ext_skillcorner_1925299` | 75,576 / 77,626 | 153,202 | 33,480（21.85%） | 53,378（34.84%） | 33,600（21.93%） | 63,661（41.55%） | 2,563（1.67%） |
 
 Metrica 的 X 现在只剩半场首尾（Game 1/2/3 分别为 2,932 / 1,042 / 1,063 frame），没有
@@ -45,28 +45,30 @@ phase 内没有球员追踪。
 
 “长段缺球”指连续球坐标缺失超过 5 s（>125 frame）。旧规则（只处理 BALL OUT、进球和
 10 s 犯规窗口）下，长段缺球中被标成 H/A 的比例为 **44.1% / 49.5% / 36.5%**
-（Game 1/2/3）；改成事件顺序规则后为 **13.6% / 20.2% / 18.8%**：
+（Game 1/2/3）；改成事件顺序规则，并排除 RECOVERY、把含 GOAL KICK 的 PASS 都当作
+restart 后，降为 **12.4% / 15.9% / 16.2%**：
 
 | 场次 | >5 s 缺球段 | 长段 frame | H/A | D | X | H/A 占比 |
 |---|---:|---:|---:|---:|---:|---:|
-| Game 1 | 85 | 55,462 | 7,560 | 44,970 | 2,932 | 13.63% |
-| Game 2 | 84 | 55,880 | 11,300 | 43,722 | 858 | 20.22% |
-| Game 3 | 91 | 44,898 | 8,457 | 35,445 | 996 | 18.84% |
+| Game 1 | 85 | 55,462 | 6,860 | 45,670 | 2,932 | 12.37% |
+| Game 2 | 84 | 55,880 | 8,894 | 46,128 | 858 | 15.92% |
+| Game 3 | 91 | 44,898 | 7,264 | 36,638 | 996 | 16.18% |
 
 剩余活球长段的前后事件（按长段前最后一个事件 / 长段结束后第一个事件统计）：
 
 | 场次 | 剩余活球段 | 长段前最后事件 | 长段结束后第一个事件 |
 |---|---:|---|---|
-| Game 1 | 22 | FAULT RECEIVED 7、BALL OUT 5、SHOT OUT 4、BALL LOST FORCED 2、其他 4 | PASS 10、RECOVERY 8、SET PIECE FREE KICK 3、其他 1 |
-| Game 2 | 25 | BALL OUT 5、BALL LOST FORCED 5、FAULT RECEIVED 3、BALL LOST HAND BALL 3、SHOT OUT 2、其他 7 | RECOVERY 7、SET PIECE FREE KICK 6、PASS 6、SET PIECE KICK OFF 2、其他 4 |
-| Game 3 | 15 | BALL LOST FORCED 5、CARRY 5、BALL LOST OFFSIDE 2、BALL LOST HAND BALL 2、非犯规 CHALLENGE 1 | SET PIECE FREE KICK\|INDIRECT 10、RECOVERY 4、SET PIECE THROW IN 1 |
+| Game 1 | 20 | FAULT RECEIVED 7、BALL OUT 4、SHOT OUT 4、BALL LOST FORCED/OFFSIDE/THEFT/HEAD-INTERCEPTION 各 1、非犯规 CHALLENGE 1 | PASS 10、RECOVERY 7、SET PIECE FREE KICK 2、BALL LOST INTERCEPTION 1 |
+| Game 2 | 22 | BALL LOST FORCED 4、BALL OUT 4、FAULT RECEIVED 3、BALL LOST HAND BALL 3、BALL LOST INTERCEPTION 2、SHOT OUT 1、其他 5 | PASS 6、RECOVERY 5、SET PIECE FREE KICK 5、SET PIECE KICK OFF 2、其他 4 |
+| Game 3 | 14 | BALL LOST FORCED 5、CARRY 4、BALL LOST OFFSIDE 2、BALL LOST HAND BALL 2、非犯规 CHALLENGE 1 | SET PIECE FREE KICK\|INDIRECT 10、RECOVERY 3、SET PIECE THROW IN 1 |
 
 Game 1/2 中仍以 FAULT RECEIVED / BALL OUT / SHOT OUT 开头的活球长段，都是因为停顿事件
-之后、下一个 restart 之前又出现了 PASS / CARRY / RECOVERY（有利或数据商事件未对齐），
-所以规则没有把它改成 D。Game 3 剩余活球段主要从 BALL LOST FORCED、BALL LOST
-OFFSIDE/HAND BALL、CARRY 和非犯规 CHALLENGE 开始；这些事件不在本次指定的停顿事件列表
-里，因此保留活球。Game 3 的 D 占比 27.31%，略低于“约 30%–40%”的预期；没有为了凑数
-追加事件类型或单场常数。
+之后、下一个 restart 之前又出现了 PASS / CARRY（有利或数据商事件未对齐），所以规则没有
+把它改成 D；RECOVERY 不再算活球，因此这类剩余段明显减少。Game 3 剩余活球段主要从
+BALL LOST FORCED、BALL LOST OFFSIDE/HAND BALL、CARRY 和非犯规 CHALLENGE 开始；这些
+事件不在本次指定的停顿事件列表里，因此保留活球，且多数在下一个 SET PIECE 处结束。
+Game 3 的 D 占比 28.19%，与当前规则和剩余事件类型一致；没有为了凑数追加事件类型或
+单场常数。
 
 缺球率与调研一致（Metrica 32–41%，SkillCorner 约 22%）；SkillCorner 上采样后为
 153,202 frame，约等于 61,282 × 2.5。每 clip 的缺球率：
@@ -144,18 +146,21 @@ EPTS 元信息路径检查 ATD：provider=`metrica`、fps=25、pitch=105×68；�
 - **D（事件顺序）**：停顿开始事件包括 `BALL OUT`、subtype 含 `OUT` 的 `SHOT`、
   `FAULT RECEIVED`、`CARD`、subtype 含 `FAULT` 的 `CHALLENGE`。从该事件的 `start`
   到下一个 restart 的 `start`（左闭右开），只有在停顿事件 `end` 之后、restart 之前
-  没有任何活球事件（`PASS`、`CARRY`、`RECOVERY`、未出界的 `SHOT`）时，才标 D；
-  中间有活球事件表示有利或原停顿不成立，保留 H/A。
-- **restart**：`SET PIECE`，或 subtype 恰为 `GOAL KICK` 的 `PASS`——数据商把球门球
-  编码成 PASS（Game 1/2/3 都是），它应该结束前一段 D，而不是作为活球取消 D；
-  `GOAL KICK-INTERCEPTION` 仍是活球。D 区间合并。
+  没有任何活球事件（`PASS`、`CARRY`、未出界的 `SHOT`）时，才标 D；中间有活球事件
+  表示有利或原停顿不成立，保留 H/A。**`RECOVERY` 不算活球事件**：死球时捡球也会被
+  记成 RECOVERY，三场分别有 22/63、20/60、12/70 次出界死球被它整段取消；但 RECOVERY
+  仍然可以切换 H/A（见下一条）。
+- **restart**：`SET PIECE`，或 subtype **包含** `GOAL KICK` 的 `PASS`——数据商把
+  球门球和“被拦截的球门球”都编码成 PASS（Game 1/2/3 都是），它们应该结束前一段 D，
+  而不是作为活球取消 D。D 区间合并。
 - **进球**：保持原规则，`SHOT` subtype 含 `GOAL` 时从射门 `end+1` 到下一次
   `KICK OFF` 的 `start`。
 - **X**：只剩半场首尾——半场开始到第一次 `KICK OFF` 之前；该半场最后一个事件的
   `end` 之后。没有可用的终场哨事件，因此“终场之后”用最后一个事件结束来近似。
   没有 10 s 犯规窗口，也没有犯规窗口产生的 X。
 - **H/A**：最近一次 `PASS`、`CARRY`、`RECOVERY`、`SHOT` 或 `SET PIECE` 的球队；事件
-  之间沿用该队。`BALL LOST`、`CHALLENGE` 不直接切换球队。
+  之间沿用该队。RECOVERY 仍按这条规则切换球队，只是不取消 D。`BALL LOST`、
+  `CHALLENGE` 不直接切换球队。
 - 优先级：半场首尾的 X 最高；D 覆盖 H/A；没有其他 X。
 - `events.csv` 写出推导用到的类型：上述五类切换事件、`BALL OUT`、`SHOT`、
   `FAULT RECEIVED`、`CARD`，以及 subtype 含 `FAULT` 的 `CHALLENGE`；非犯规
@@ -203,29 +208,29 @@ switch 只在官方 `valid_runs` 内比较，predict 的 X 在 run 内按官方 
 
 | 实验 | 数据集 | spellF1 上半/下半 | macroF1 上半/下半 |
 |---|---|---:|---:|
-| sustained_control | Game 1 | 0.5069 / 0.4650 | 0.6778 / 0.6749 |
-| sustained_control | Game 2 | 0.5788 / 0.4904 | 0.7686 / 0.7283 |
-| sustained_control | Game 3 | 0.5551 / 0.4797 | 0.7787 / 0.8402 |
+| sustained_control | Game 1 | 0.5055 / 0.4502 | 0.6783 / 0.6678 |
+| sustained_control | Game 2 | 0.5801 / 0.4878 | 0.7558 / 0.7215 |
+| sustained_control | Game 3 | 0.5573 / 0.4797 | 0.7999 / 0.8402 |
 | sustained_control | SkillCorner | 0.6108 / 0.6326 | 0.7203 / 0.7519 |
-| dead_ball_aware（无标签） | Game 1 | 0.5624 / 0.5754 | 0.7636 / 0.8479 |
-| dead_ball_aware（无标签） | Game 2 | 0.6202 / 0.6147 | 0.8256 / 0.8206 |
-| dead_ball_aware（无标签） | Game 3 | 0.5762 / 0.5632 | 0.8290 / 0.8608 |
+| dead_ball_aware（无标签） | Game 1 | 0.5728 / 0.6025 | 0.7731 / 0.8908 |
+| dead_ball_aware（无标签） | Game 2 | 0.6418 / 0.6140 | 0.8624 / 0.8371 |
+| dead_ball_aware（无标签） | Game 3 | 0.5739 / 0.5632 | 0.8464 / 0.8608 |
 | dead_ball_aware（无标签） | SkillCorner | 0.6194 / 0.6379 | 0.8161 / 0.8212 |
 
 8 个 clip 等权平均的补充诊断（per-class F1 也是先按 clip 算再平均，不是把两半合成一个混淆矩阵）：
 
 | 算法 | spellF1 | macroF1 | alive/dead F1 | H F1 | A F1 | D F1 |
 |---|---:|---:|---:|---:|---:|---:|
-| sustained_control | 0.540 | 0.743 | 0.858 | 0.779 | 0.767 | 0.682 |
-| dead_ball_aware（无标签） | 0.596 | 0.823 | 0.898 | 0.828 | 0.809 | 0.833 |
+| sustained_control | 0.538 | 0.742 | 0.853 | 0.775 | 0.764 | 0.687 |
+| dead_ball_aware（无标签） | 0.603 | 0.839 | 0.909 | 0.839 | 0.818 | 0.859 |
 
 按数据源平均：
 
 | 算法 | 源 | spellF1 | macroF1 | alive/dead F1 | D F1 |
 |---|---|---:|---:|---:|---:|
-| sustained_control | Metrica | 0.513 | 0.745 | 0.862 | 0.671 |
+| sustained_control | Metrica | 0.510 | 0.744 | 0.856 | 0.678 |
 | sustained_control | SkillCorner | 0.622 | 0.736 | 0.844 | 0.716 |
-| dead_ball_aware（无标签） | Metrica | 0.585 | 0.825 | 0.898 | 0.823 |
+| dead_ball_aware（无标签） | Metrica | 0.595 | 0.845 | 0.912 | 0.857 |
 | dead_ball_aware（无标签） | SkillCorner | 0.629 | 0.819 | 0.899 | 0.863 |
 
 这些分数只说明链路能跑通。弱标签由不同数据商的事件/phase 推出，和官方 H/A/D 定义不同，
@@ -233,7 +238,7 @@ switch 只在官方 `valid_runs` 内比较，predict 的 X 在 run 内按官方 
 
 这批分数来自 main `38c3fdb`，并且 Metrica 弱标签已改成事件顺序规则；它不能和旧规则下
 的分数直接逐项比较。`dead_ball_aware` 无标签分支在 Metrica 上的 D F1 从旧规则的约
-0.61–0.68 回升到 0.81–0.84，但这是弱标签上的诊断，不是算法结论。最新提交的 tag
+0.61–0.68 回升到 0.85–0.86，但这是弱标签上的诊断，不是算法结论。最新提交的 tag
 ownership 改动仍只影响传入 tags 的分支；外部数据没有 Smart Tagging，无法验证。评分使用
 同一批 `ext_*` 数据集，未重新生成观测或答案。
 
@@ -242,12 +247,14 @@ ownership 改动仍只影响传入 tags 的分支；外部数据没有 Smart Tag
 1. **弱标签不是官方真值**。Metrica 没有 `ball_state`/`possession`，SkillCorner phase 与
    possession 在约 14.8% 的重叠帧上不一致；本转换没有解决这个分歧，只按 phase 取球队。
 2. **Metrica 事件不完整，事件顺序规则只能近似有利/哨声**：规则没有 advantage 或 whistle
-   字段，只能看停顿事件 `end` 之后、restart 之前有没有 `PASS`/`CARRY`/`RECOVERY`/未出界
-   `SHOT`；数据商漏记或多记事件会改变判断。剩余 >5 s 缺球里仍被标成活球的段，主要从
-   `BALL LOST FORCED`、`BALL LOST OFFSIDE/HAND BALL`、`CARRY`、非犯规 `CHALLENGE` 开始，
-   这些不在本次指定的停顿事件列表内；Game 3 的 D 因此只有 27.3%，略低于 30% 的预期。
-   球门球被数据商编码成 `PASS GOAL KICK`，这里按 restart 处理（否则会把前面整段 D
-   错误取消）；`GOAL KICK-INTERCEPTION` 仍是活球。
+   字段，只能看停顿事件 `end` 之后、restart 之前有没有 `PASS`/`CARRY`/未出界 `SHOT`；
+   数据商漏记或多记事件会改变判断。`RECOVERY` 被排除在活球事件之外，因为死球时捡球也会
+   被记成 RECOVERY；它仍然按 H/A 切换规则切换球队。剩余 >5 s 缺球里仍被标成活球的段，
+   主要从 `BALL LOST FORCED`、`BALL LOST OFFSIDE/HAND BALL`、`CARRY`、非犯规
+   `CHALLENGE` 开始，这些不在本次指定的停顿事件列表内，且多数在下一个 `SET PIECE` 处
+   结束；Game 3 的 D 因此为 28.19%，与当前规则一致。球门球和“被拦截的球门球”都被数据商
+   编码成 subtype 含 `GOAL KICK` 的 `PASS`，这里都按 restart 处理（否则会把前面整段 D
+   错误取消或错误变成活球）。
 3. **Metrica H/A 是事件滞后代理**：只取最近一次切换事件，不区分控制、争抢、松散球；
    `BALL LOST`/`CHALLENGE` 被有意忽略。事件覆盖不到的帧沿用上一队，可能把活球/死球
    边界附近标错。
