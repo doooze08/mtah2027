@@ -168,4 +168,36 @@ def build_st04(b, rng):
     _shot_out(b, rng, goal=True)
 
 
-SUBTYPES = {"ST01": build_st01, "ST02": build_st02, "ST03": build_st03, "ST04": build_st04}
+def build_st05(b, rng):
+    """A dead-ball pass to the taker: the ball moves, but the answer stays D until the kick.
+
+    The first pass and the taker's setting touch are deliberately not control events.
+    """
+    motion = StoryMotion.sample(rng)
+    holder = _start(b, rng, (43, rng.uniform(30, 38)), motion)
+    taker = b.player("atk", "lcm")
+    marker = b.player("dfn", "lcm")
+    b.start_at(taker, (holder.start[0] + rng.uniform(8, 12),
+                       holder.start[1] + rng.uniform(-4, 4)))
+    b.start_at(marker, (holder.start[0] + 0.8, holder.start[1] + 0.5))
+
+    x, y = holder.anchor(b.now)
+    b.dribble(holder, (x + 3, y), 3.0, settle=1.0)
+    b.run_to(marker, (x + 3.3, y + 0.5), arrive_at=b.now, seconds=2.5)
+    b.event("stoppage")
+    dead_at = b.now
+    b.hold(holder, 1.0, in_front=0)
+
+    # A teammate rolls the dead ball to the taker. This is not a control_start:
+    # the taker's trap and setting touch also leave the answer D.
+    arrival_speed = rng.uniform(6.0, 8.0)
+    b.roll_to(player=taker, arrival_speed=arrival_speed, deceleration=motion.deceleration)
+    b.trap(taker, motion.trap_seconds(arrival_speed))
+    b.hold(taker, 0.8, in_front=0, still=True)
+    _wait_for_restart(b, rng, taker, dead_at)
+    _ground_restart(b, rng, taker, b.player("atk", "ls"), motion)
+    b.expect("D", "atk", "D", "atk")
+
+
+SUBTYPES = {"ST01": build_st01, "ST02": build_st02, "ST03": build_st03,
+            "ST04": build_st04, "ST05": build_st05}

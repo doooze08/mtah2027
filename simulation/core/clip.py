@@ -30,6 +30,7 @@ from simulation.core.constants import (AWAY, BALL_ID, BALL_RADIUS, FPS, HOME, PI
                                        PITCH_WIDTH)
 from simulation.core.motion import (BallFlight, BallWithPlayer, BouncingBall, FormationFollow,
                                     GroundRoll, GroundTrap, PlayerTrack)
+from simulation.core.pace import CollectivePace
 
 # Starting positions in the attacker frame (atk attacks +x, so its goal is at x = 0).
 # A 4-4-2 against a 4-4-2, roughly a settled phase of play around midfield.
@@ -75,17 +76,20 @@ class Clip:
     players_at: Callable[[float], List[Tuple[str, str, float, float]]]   # (object, team, x, y)
     controlled_windows: List[Tuple[float, float]] = field(default_factory=list)
     ground_impacts: List[float] = field(default_factory=list)
+    collective_pace: Optional[dict] = None
 
 
 class ClipBuilder:
     """Stage one story. See the module docstring for the vocabulary."""
 
-    def __init__(self, rng: np.random.Generator, initiating_team: str, follow_ball: bool = False):
+    def __init__(self, rng: np.random.Generator, initiating_team: str, follow_ball: bool = False,
+                 collective_pace: bool = False):
         if initiating_team not in (HOME, AWAY):
             raise ValueError("initiating_team must be 'H' or 'A'")
         self.rng = rng
         self.initiating_team = initiating_team
         self.follow_ball = follow_ball
+        self.collective_pace = collective_pace
         self.now = 0.0
         self._players: Dict[Tuple[str, str], PlayerTrack] = {}
         self._ball_segments: list = []
@@ -376,22 +380,27 @@ class ClipBuilder:
         object_id = self._object_ids(team_of)
         swap = self.initiating_team == AWAY
 
-        # Following is a render-only translation of background roles. Excluding
-        # all scripted actors prevents a moving target from feeding back into passes.
-        followers, follow_curve = set(), None
-        if self.follow_ball:
-            actors = {(s.player.team, s.player.role) for s in self._ball_segments
-                      if isinstance(s, BallWithPlayer)}
-            followers = {key for key, track in self._players.items()
-                         if key not in actors and not track.moves and not track.still_periods}
-            if followers:
-                tracks = [self._players[key] for key in followers]
-                lower = [max(-6.0, 1.0 - min(p.start[axis] - p.sway_amplitude[axis]
-                                             for p in tracks)) for axis in (0, 1)]
-                upper = [min(6.0, size - 1.0 - max(p.start[axis] + p.sway_amplitude[axis]
-                                                  for p in tracks))
-                         for axis, size in enumerate((PITCH_LENGTH, PITCH_WIDTH))]
-                follow_curve = FormationFollow(self.ball_position, end, lower, upper, FPS)
+        # Following and collective pace are both render-only translations of background
+        # roles. Excluding every scripted actor keeps a moving target out of passes. When
+        # collective pace is enabled it owns background motion; follow is disabled so the
+        # two translations cannot stack and change the measured speed profile.
+        actors = {(s.player.team, s.player.role) for s in self._ball_segments
+                  if isinstance(s, BallWithPlayer)}
+        followers = {key for key, track in self._players.items()
+                     if key not in actors and not track.moves and not track.still_periods}
+        followers = set(sorted(followers))
+        follow_curve = None
+        if self.follow_ball and not self.collective_pace and followers:
+            tracks = [self._players[key] for key in followers]
+            lower = [max(-6.0, 1.0 - min(p.start[axis] - p.sway_amplitude[axis]
+                                         for p in tracks)) for axis in (0, 1)]
+            upper = [min(6.0, size - 1.0 - max(p.start[axis] + p.sway_amplitude[axis]
+                                              for p in tracks))
+                     for axis, size in enumerate((PITCH_LENGTH, PITCH_WIDTH))]
+            follow_curve = FormationFollow(self.ball_position, end, lower, upper, FPS)
+        pace = None
+        if self.collective_pace and followers:
+            pace = CollectivePace(self.rng, self._events, end, sorted(followers))
 
         def place(x, y):
             """Attacker frame -> final frame (rotate the pitch for the swapped version)."""
@@ -407,7 +416,11 @@ class ClipBuilder:
             for key, track in self._players.items():
                 position = track.position(t)
                 if key in followers:
-                    position = (position[0] + offset[0], position[1] + offset[1])
+                    if pace is not None:
+                        delta = pace.offset(key, t)
+                        position = (position[0] + delta[0], position[1] + delta[1])
+                    elif offset is not None:
+                        position = (position[0] + offset[0], position[1] + offset[1])
                 x, y = place(*position)
                 out.append((object_id[key], team_of[track.team], x, y))
             return out
@@ -442,6 +455,7 @@ class ClipBuilder:
             players_at=players_at,
             controlled_windows=list(self._controlled_windows),
             ground_impacts=list(self._ground_impacts),
+            collective_pace=pace.audit() if pace is not None else None,
         )
 
     # -- internals -----------------------------------------------------------------------------

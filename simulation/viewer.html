@@ -35,7 +35,7 @@ const data = JSON.parse(document.getElementById("simulation-data").textContent);
 const $ = id => document.getElementById(id);
 const colors = {H:"#e77e57", A:"#558cdb", D:"#657873", X:"#918aa6", missing:"#b9c1c6"};
 const names = {H:"主队 H", A:"客队 A", D:"死球 D", X:"弃答 X"};
-const scenarios = {TI01:"界外球重启", HD01:"长传 · 争顶与控制", ST01:"犯规与任意球", ST02:"长等待界外球", ST03:"长等待球门球", ST04:"进球与中圈开球"};
+const scenarios = {TI01:"界外球重启", HD01:"长传 · 争顶与控制", ST01:"犯规与任意球", ST02:"长等待界外球", ST03:"长等待球门球", ST04:"进球与中圈开球", ST05:"死球中递给主罚球员"};
 const eventNames = {legal_restart:"合法重启", control_start:"取得控制", incidental_touch:"碰球，未取得控制", ball_out:"球出界", stoppage:"停止比赛"};
 let clip, frame = 0, playing = false, startTime = 0, startFrame = 0, speed = 1;
 const canvases = ["pitch", "height", "timeline"];
