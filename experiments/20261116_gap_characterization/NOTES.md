@@ -123,7 +123,7 @@ AUC 定义为“人工活球的特征值大于死球缺球”的概率；小于 
 
 ## 6. Game 3 检查（只运行一次）
 
-特征和样本定义在运行 G3 前冻结；`features.py` 和 `config.yaml` 的哈希保存在 `outputs/20261116_gap_characterization/design/frozen_hashes.txt`。G3 样本数：dead_gap 74、live_gap 14（其中 suspicious 11）、artificial_live 200、dead_visible 20。
+特征和样本定义在运行 G3 前冻结；`features.py` 的哈希保存在 `outputs/20261116_gap_characterization/design/frozen_hashes.txt`。原来的 `config.yaml` 只重复 `features.py` 的常量，已删除，唯一来源是代码中的常量；删除不改变任何计算。G3 样本数：dead_gap 74、live_gap 14（其中 suspicious 11）、artificial_live 200、dead_visible 20。
 
 关键分布：
 
@@ -144,7 +144,7 @@ G3 的排序与设计集一致：F1 中位数仍最强（0.925），球队重心
 
 死球缺球的时长通常比人工遮球长（设计集中位数 20.5 s vs 8.4 s），所以“重现–消失距离”可能部分反映时长。把死球缺球限制到 5–15 s 后重算（只作为敏感性检查，不作为主结果）：所有比赛上该距离 AUC 0.956、F1 中位数 0.873、球队速度 0.857；设计集 0.956/0.873/0.847，G3 0.957/0.884/0.870。距离在等时长子集上仍然很强，但死球样本只剩 96 段；该检查说明它不是单纯由时长造成，不能说明真实部署时没有长度偏差。完整表在 `feature_auc_length_matched.csv`。
 
-## 7. 真实活球缺球与可疑段
+## 7. 疑似活球缺球与可疑段
 
 下表是全部 `live_gap`/`suspicious_gap` 的逐段摘要（`real_live_segments.csv` 含全部特征；不含 BAR-ATH 帧号）。`start_s`/`stop_s` 是 clip 内秒数。
 
@@ -185,11 +185,32 @@ G3 的排序与设计集一致：F1 中位数仍最强（0.925），球队重心
 | 3 | second_half | 2480.1–2507.4 | RECOVERY | no | goal_area | out_or_touchline | 1.399 | 1.349 | 14.465 |
 | 3 | second_half | 2705.2–2745.5 | SET PIECE FREE KICK\|INDIRECT | yes | other | other | 1.124 | 1.008 | 15.983 |
 
-所有 15 段非可疑“真实活球”缺球的第一个事件都是 `RECOVERY`，消失类别都是边线/场外，重现几乎都在球门区；这更像漏标的死球/重启，而不是干净的活球。可疑段大多以定位球开始，F1 和球队速度也更接近死球。因此：
+所有 15 段非可疑 `live_gap`（疑似活球）的第一个事件都是 `RECOVERY`，消失类别都是边线/场外，重现几乎都在球门区。上表只能作为弱标签错误的记录，不是活球长缺球的样本。逐段的原始事件上下文如下（缺球前最后 3 个、缺球后前 2 个；只列类型/子类型，不含 BAR-ATH 帧号）：
 
-- “真实活球”样本不适合作为干净的活球基准，只能定性对照；
-- 人工遮球和真实活球的特征不同（人工 F1 中位 1.94，真实 1.31–1.37），不能把人工遮球的 AUC 直接当成真实缺球的 AUC；
-- 反过来说，弱标签里的“活球长缺球”本身混有大量可疑段，这也解释了为什么靠弱标签评估的球员速度规则会不稳定。
+| match | clip | start–stop (s) | 缺球前最后 3 个事件 | 缺球后前 2 个事件 |
+|---:|---|---:|---|---|
+| 1 | first_half | 311.6–339.2 | CHALLENGE TACKLE-LOST \| RECOVERY \| SHOT OFF TARGET-OUT | RECOVERY \| BALL LOST GOAL KICK-INTERCEPTION |
+| 1 | first_half | 879.3–903.1 | PASS \| PASS \| BALL OUT | RECOVERY \| BALL LOST GOAL KICK-INTERCEPTION |
+| 1 | first_half | 1065.4–1089.8 | PASS \| PASS \| SHOT HEAD-OFF TARGET-OUT | RECOVERY \| BALL LOST GOAL KICK-INTERCEPTION |
+| 1 | first_half | 1317.9–1345.8 | PASS \| PASS \| BALL OUT | RECOVERY \| BALL LOST GOAL KICK-INTERCEPTION |
+| 1 | first_half | 2309.6–2362.1 | BALL LOST \| RECOVERY \| SHOT OFF TARGET-OUT | RECOVERY \| BALL LOST INTERCEPTION |
+| 1 | second_half | 232.1–249.6 | PASS \| CHALLENGE AERIAL-WON \| SHOT HEAD-WOODWORK-OUT | RECOVERY \| RECOVERY |
+| 1 | second_half | 1042.0–1072.0 | CHALLENGE GROUND-FAULT-LOST \| SET PIECE FREE KICK \| BALL OUT | RECOVERY \| BALL LOST GOAL KICK-INTERCEPTION |
+| 2 | first_half | 177.7–198.2 | PASS \| PASS \| SHOT OFF TARGET-OUT | RECOVERY \| PASS |
+| 2 | first_half | 1094.4–1119.7 | PASS \| SHOT HEAD-OFF TARGET-OUT \| CHALLENGE AERIAL-LOST | RECOVERY \| BALL LOST GOAL KICK-INTERCEPTION |
+| 2 | first_half | 1741.0–1787.2 | RECOVERY THEFT \| BALL LOST INTERCEPTION \| BALL OUT | RECOVERY \| BALL LOST GOAL KICK-INTERCEPTION |
+| 2 | second_half | 161.2–174.2 | PASS \| PASS \| BALL OUT | RECOVERY \| PASS |
+| 2 | second_half | 1161.5–1179.5 | PASS \| PASS \| BALL OUT | RECOVERY \| BALL LOST GOAL KICK-INTERCEPTION |
+| 3 | first_half | 1821.3–1887.8 | RECOVERY \| SHOT OFF TARGET\|OUT \| CARRY | RECOVERY \| BALL LOST FORCED |
+| 3 | second_half | 98.8–114.4 | BALL OUT \| CARRY \| CHALLENGE GROUND\|WON | RECOVERY \| BALL LOST GOAL KICK |
+| 3 | second_half | 2480.1–2507.4 | RECOVERY \| BALL OUT HEAD \| CARRY | RECOVERY \| BALL LOST GOAL KICK\|INTERCEPTION |
+
+15 段中 12 段在球消失前最后事件是射门出界或 `BALL OUT`；10 段在球消失后出现 `BALL LOST GOAL KICK...`；其余也以 `RECOVERY`/`PASS` 接回比赛。原因可以确定，不是“可能漏标”：
+
+- Metrica 把部分球门球记成 `BALL LOST`，subtype 含 `GOAL KICK`；而 `external/metrica.py` 的 `_is_goal_kick_pass` 只把 **PASS** 且 subtype 含 `GOAL KICK` 视为开球，`_is_restart` 只接受 `SET PIECE` 或这种 PASS。`BALL LOST GOAL KICK` 不是 restart。
+- 事件顺序规则下，停表开始后如果找不到 restart，后续 `PASS` 作为 live event 取消整段停表，标签就变成活球。
+
+因此本数据中没有确认的活球长缺球；第 7 节的逐段表只是弱标签错误的记录。转换器的修复另开 PR，本 PR 不改 `external/`。可疑段大多以定位球开始，F1 和球队速度也更接近死球；人工遮球和这 15 段疑似段的特征不同（人工 F1 中位 1.94，疑似段 1.31–1.37），不能把人工遮球的 AUC 直接当成真实缺球的 AUC。弱标签里的“活球长缺球”本身混有大量可疑段或漏标段，这也解释了为什么靠弱标签评估的球员速度规则会不稳定。
 
 ## 8. 结论
 
@@ -197,16 +218,42 @@ G3 的排序与设计集一致：F1 中位数仍最强（0.925），球队重心
 2. **重现位置类别有稳定但较弱的方向**：活球缺球重现更常在 `other`（设计 91.2%，G3 93.5%），死球缺球更多在边线/场外或定位球区；`reappear_category=other` 的 AUC 0.753（G3 0.839）。它不能单独达到运动特征的区分度。
 3. **“重现球速”方向与预期相反**：死球缺球的 0.5 s 球速中位数 11.2 m/s，人工活球 7.0 m/s（AUC 0.270，死球更高）。死球缺球常以开球/解围结束，球一出现就很快；人工遮球结束时球可能只是慢慢滚动或在脚下。这个特征不能按“活球一出现就在动”解释。
 4. **方向余弦几乎不可用**：两类样本的中位余弦都接近 1（0.96 vs 0.98），AUC 只有 0.675；离散程度也弱（0.663）。在本数据上，两队整体方向不是有效的死球/活球分离量。
-5. **球可见的 D 段球员并不慢**：`dead_visible` 的 F1 中位 1.82（G1/G2）、1.84（G3），甚至高于死球缺球；球员运动特征不能识别“球可见但停表”的情况。这正好对应另一类整段错误，需另找信号。
+5. **球可见的 D 段不能用来判断球员是否慢**：`dead_visible` 的总体 F1 中位偏高，但这主要是停表后的减速滞后，不是“可见停表时球员仍在正常跑动”的证据；把段按它离所在 D 段起点的距离拆开后才看得清楚（8.1 节）。
 6. **G3 没有明显变差**：主要排序和方向保持，F1 AUC 0.925、球队速度 0.911、位置类别 0.839；没有根据 G3 改特征。
+
+### 8.1 球可见的 D 段：按离 D 段起点的时间分组
+
+对每段 `dead_visible`，用其起始帧在所在弱标签 D 段中的位置分组；“D 起点后不到 1 s”是停表刚发生，“D 中途”是停表已持续至少 1 s。
+
+| 组 | n（设计/检查） | 段长中位（s） | `f1_speed_med` 中位（Q1–Q3） |
+|---|---:|---:|---:|
+| D 起点后不到 1 s | 62（43/19） | 3.44 | 1.956（1.445–2.776） |
+| D 中途至少 1 s | 11（10/1） | 12.00 | 1.262（1.143–1.346） |
+
+`experiments/20261116_collective_speed` 测得停表后约 1.7–2.4 s 球员才明显减速。因此 62 段“起点组”是停表后的头几秒，球员还没慢下来，不能用来判断“球可见的 D 段球员慢不慢”。中途组只有 11 段，F1 中位 1.262，已经接近死球缺球的 1.039；方向上像死球，但样本太少，不能据此下“运动特征识别不了可见停表”的结论。
+
+### 8.2 球员速度快的死球缺球是什么
+
+取 `f1_speed_med` 高于 `artificial_live` 的 25 分位（1.575 m/s）的 `dead_gap`。这个分位线和下面的 10 m 都只是描述分组线，不是阈值候选，也不进入算法。
+
+| 描述项 | 数值 |
+|---|---:|
+| 段数（设计/检查） | 18（8/10） |
+| 重现类别：边线/场外 / 球门区 / 其他 | 8 / 7 / 3 |
+| 重现–消失距离不超过 10 m | 14 |
+| 段长不超过 10 s | 13 |
+| 重现类别为“其他”且距离超过 10 m | 1 |
+| `artificial_live` 中“其他”且距离超过 10 m | 494/600（82.3%） |
+
+这 18 段的事件几乎都是快发界外球、球门球或任意球：缺球前以 `BALL OUT` 或射门出界结束，缺球后 2 个事件内出现 `SET PIECE THROW IN`、`PASS GOAL KICK` 或 `SET PIECE FREE KICK`；没有庆祝或角球前跑位的例子。唯一一段“其他位置且超过 10 m”也是射门出界后的球门球局面，不是开阔地带的活球进攻。完整逐段表在 `fast_dead_gaps.csv`。
 
 如果只能选一两个：`f1_speed_med`（或等价的球队重心速度中位数）是唯一接近“干净”的单特征；重现位置类别可作为方向一致的补充，但明显更弱。这里不给出阈值、组合规则或算法接入方式。
 
 ## 9. 限制
 
-- 弱标签有噪声：15 段“真实活球”全部以 `RECOVERY` 开始、消失于边线/场外，可能是漏标死球；可疑段只覆盖“首个事件是 SET PIECE”的情况，其他漏标形式没有单独标出。
-- 真实活球只有 15 段（G3 仅 3 段非可疑），不能算稳定 AUC；所有 AUC 都是死球 vs 人工遮球。
-- 人工遮球不是真实追踪丢失：它只遮球，球员轨迹完整；真实缺球常伴随转播/追踪问题。人工与真实活球的 F1 分布明显不同，结论不能直接外推到真实缺球。
+- 弱标签有噪声：15 段疑似活球中，10 段缺球后出现 `BALL LOST GOAL KICK...`，其余也以 `RECOVERY` 接回比赛；没有一段显示球在场上被正常推进后重新出现。它们是弱标签错误，不是干净的活球样本。可疑段只覆盖“首个事件是 SET PIECE”的情况，其他漏标形式没有单独标出。
+- 因此本数据中没有确认的活球长缺球，Metrica 这三场无法用来测量活球长缺球的频率；这个现象目前只在本场公开五分钟的定性检查中见过，本任务没有重新评分或据此调参。
+- 15 段疑似段（G3 仅 3 段非可疑）不能算稳定 AUC；所有 AUC 都是死球 vs 人工遮球。人工遮球和这些疑似段的 F1 分布明显不同（1.94 vs 1.31–1.37），不能把人工遮球的结论直接外推到真实追踪丢失。
 - 死球缺球时长分布比人工遮球长；距离特征受时长影响。5–15 s 等时长检查仍显示距离很强，但死球样本只剩 96 段，且这不是主分析。
 - 球队特征基于“每队有限位置最多的 11 个槽位 + 最近球门近似门将”，换人、重复槽位和缺失会让 10 名场上球员的近似不完美；没有球员身份。
 - 位置类别是离散的，AUC 用 one-vs-rest 指示变量；多类别联合分布可能比单个指示变量更有信息，但本任务不训练分类器。
@@ -216,10 +263,10 @@ G3 的排序与设计集一致：F1 中位数仍最强（0.925），球队重心
 
 脚本：
 
-- `experiments/20261116_gap_characterization/features.py`：样本/特征定义和读取。
+- `experiments/20261116_gap_characterization/features.py`：样本/特征定义和读取；窗口、场地常量、阈值等唯一来源都在这里，不再有 `config.yaml`。
 - `experiments/20261116_gap_characterization/build_samples.py`：生成逐段样本。
 - `experiments/20261116_gap_characterization/analyze.py`：分布、AUC、逐段表。
-- `experiments/20261116_gap_characterization/config.yaml`：固定参数、窗口、场地常量。实验脚本为独立运行，`features.py` 中的常量与 config 一致，但不解析 YAML；config 是冻结参数的记录。
+- `experiments/20261116_gap_characterization/describe.py`：评审要求的两张描述表和疑似活球事件上下文；只做描述，不改样本或特征。
 
 运行（从仓库根目录）：
 
@@ -234,16 +281,23 @@ G3 的排序与设计集一致：F1 中位数仍最强（0.925），球队重心
 .venv/bin/python experiments/20261116_gap_characterization/analyze.py \
   --inputs outputs/20261116_gap_characterization/design/samples_design.csv \
            outputs/20261116_gap_characterization/samples_test.csv
+
+# 评审要求的描述表（读取上面的 samples_all.csv）
+.venv/bin/python experiments/20261116_gap_characterization/describe.py
 ```
 
 输出（`outputs/` 已被 Git 忽略）：
 
 - `samples_all.csv`：926 段全部特征。
-- `real_live_segments.csv`：真实活球/可疑段逐段表。
+- `real_live_segments.csv`：疑似活球缺球/可疑段逐段特征表。
+- `real_live_event_context.csv`：15 段非可疑段缺球前后原始事件（不含帧号）。
+- `dead_visible_groups.csv`、`dead_visible_group_summary.csv`：8.1 节的分组明细和汇总。
+- `fast_dead_gaps.csv`：8.2 节的 18 段球员速度快的死球缺球及前后事件。
+- `description_summary.json`：8.1/8.2 节和 15 段事件上下文的汇总。
 - `distributions.csv`：按 split/type 的分布。
 - `feature_auc.csv`：单特征 AUC。
 - `feature_auc_length_matched.csv`：5–15 s 等时长敏感性。
 - `summary.json`：样本数和段长。
-- `design/`：G1/G2 设计阶段结果和冻结哈希。
+- `design/`：G1/G2 设计阶段结果和 `features.py` 冻结哈希。
 
 仓库测试：88 个测试通过（expected failures=1）。没有原始数据、转换结果或输出进入 Git。
