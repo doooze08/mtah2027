@@ -28,3 +28,4 @@ PR 的验收过程只写在 PR 描述中，不进仓库文档。
 | [OBSERVATIONS.md](OBSERVATIONS.md) | 141 列契约和真实 ATD 本地加载 |
 | [research/EXTERNAL_DATA.md](research/EXTERNAL_DATA.md) | 外部公开跟踪数据能否用作测试集 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 环境、分支、PR 与目录归属 |
+| [submission/WHC.md](submission/WHC.md) | WHC 最终提交的技术说明（英文）与复现步骤 |

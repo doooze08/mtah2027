@@ -166,13 +166,13 @@ visible-whistle case, and a principled study of the official switch moment on ex
 
 ## 7. Reproduction
 
-Requirements: Python and the exact packages in `requirements-submission.txt`. The official data
+Requirements: Python 3.9.6 and the exact packages in `requirements-submission.txt`. The official data
 bundle goes under `data/` as described in `DATA.md`. The repository contains no match data.
 
 ```bash
-git clone <repository URL> && cd mtah2027
-git checkout <frozen commit>
-python -m venv .venv
+git clone https://github.com/doooze08/mtah2027 && cd mtah2027
+git checkout whc-submission
+python3 -m venv .venv
 .venv/bin/pip install -r requirements-submission.txt
 # copy the official data bundle into data/ (see DATA.md)
 .venv/bin/python -m simulation.run_algorithm \
@@ -183,15 +183,15 @@ cp outputs/20261117_a2_moving_reappearance/submission/dead_ball_aware.csv WHC.cs
 ```
 
 The run is deterministic: no randomness and no external calls. Expected SHA-256 of `WHC.csv`:
-`<to be filled from the frozen run>`.
+`dc215b076e0134a62cec7271673c34a5d7247442549347f913bd5724bd0801ef`.
 
 Input files used (SHA-256 of the official bundle):
 
 | File | SHA-256 |
 |---|---|
-| `data/tactical/BAR-ATH_tactical_atd.txt` | `<to be filled>` |
-| `data/tactical/BAR-ATH_tactical_atd.xml` | `<to be filled>` |
-| `data/tactical/BAR-ATH_tactical_smart_tagging.xml` | `<to be filled>` |
+| `data/tactical/BAR-ATH_tactical_atd.txt` | `f130e350d2bfdf734b7e32f072931fccc6d015c1e837d082064875fe0a700431` |
+| `data/tactical/BAR-ATH_tactical_atd.xml` | `327e35e32e46a647389b88f883d4f9a2ab931e3e6148aef2fcf8f22b1e93c43a` |
+| `data/tactical/BAR-ATH_tactical_smart_tagging.xml` | `0594d35e3df01b9c5002372d8615e2e8ef5379ac8f4e84c5ef7a53f4304c9019` |
 
 ## 8. Use of AI assistants and data handling
 
