@@ -26,7 +26,7 @@ from simulation.core.gaps import BallGapConfig, ball_gap_mask
 from simulation.scenarios import all_subtypes
 
 
-def build_clips(subtype_ids, n_stories, base_seed):
+def build_clips(subtype_ids, n_stories, base_seed, collective_pace=False):
     """Run each script for each story and both initiating teams.
 
     Returns a list of dicts with the rendered clip and its sample description.
@@ -43,7 +43,7 @@ def build_clips(subtype_ids, n_stories, base_seed):
             seed = base_seed + story
             for initiating_team in (HOME, AWAY):
                 rng = np.random.default_rng(seed)       # same seed -> same story, both versions
-                builder = ClipBuilder(rng, initiating_team)
+                builder = ClipBuilder(rng, initiating_team, collective_pace=collective_pace)
                 build(builder, rng)
                 clip = builder.finish()
                 built.append({
@@ -150,16 +150,31 @@ def main():
                         metavar=("MIN", "MAX"), help="delayed-policy delay in seconds")
     parser.add_argument("--live-ball-gap-rate", type=float, default=13 / 5400,
                         help="short gaps per live second; 0 disables them")
+    parser.add_argument("--live-ball-long-gaps", type=float, default=0.0, metavar="RATE",
+                        help="5-15 s ball-only gaps per live second; 0 disables them")
+    parser.add_argument("--collective-pace", action="store_true",
+                        help="move background players with a live/dead speed profile")
     args = parser.parse_args()
     args.subtypes = [s.strip() for s in args.subtypes.split(",") if s.strip()]
-    gaps = (BallGapConfig(tuple(args.dead_ball_gap_weights), tuple(args.dead_ball_delay_range),
-                          args.live_ball_gap_rate) if args.dead_ball_gaps else None)
+    if args.live_ball_long_gaps < 0:
+        parser.error("--live-ball-long-gaps must be nonnegative")
+    if args.dead_ball_gaps:
+        gaps = BallGapConfig(tuple(args.dead_ball_gap_weights), tuple(args.dead_ball_delay_range),
+                             args.live_ball_gap_rate,
+                             live_long_gaps_per_second=args.live_ball_long_gaps)
+    elif args.live_ball_long_gaps > 0:
+        # Long live gaps alone: keep dead-ball periods visible and disable short live gaps.
+        gaps = BallGapConfig((0, 0, 1), tuple(args.dead_ball_delay_range), 0.0,
+                             live_long_gaps_per_second=args.live_ball_long_gaps)
+    else:
+        gaps = None
 
     directory = io.dataset_dir(args.dataset_id)
     if os.path.exists(directory):
         raise SystemExit("{} exists; pick a new dataset id".format(directory))
 
-    built = assign_clip_ids(build_clips(args.subtypes, args.stories, args.seed), args.seed)
+    built = assign_clip_ids(build_clips(args.subtypes, args.stories, args.seed,
+                                        collective_pace=args.collective_pace), args.seed)
 
     failed = False
     for item in built:
