@@ -1,0 +1,53 @@
+experiment_id: 20261116_dead_ball_player_pace
+algorithm: dead_ball_aware
+description: 'Player-pace veto and restart confirmation for dead-ball decisions'
+params:
+  ball_radius_m: 0.11
+  control_radius_m: 1.3
+  relative_speed_m_s: 3.0
+  confirm_s: 0.32
+  gap_s: 5.0
+  slow_speed_m_s: 3.0
+  release_speed_m_s: 4.0
+  release_gain_m_s: 1.5
+  release_rise_s: 0.12
+  separation_s: 0.12
+  separation_m: 0.3
+  actor_margin_m: 0.3
+  restart_flight_s: 5.0
+  release_merge_s: 0.24
+  tag_margin_s: 2.0
+  tagged_slow_s: 6.0
+  gap_release_grace_s: 0.12
+  visible_grace_s: 3.0
+  gap_requires_slow_players: false
+  gap_slow_fraction: 0.4
+  restart_requires_player_rise: false
+  player_rise_window_s: 3.0
+  player_rise_delta_m_s: 0.3
+variants:
+  "off":
+    params:
+      gap_requires_slow_players: false
+      restart_requires_player_rise: false
+  gap:
+    params:
+      gap_requires_slow_players: true
+  restart:
+    params:
+      restart_requires_player_rise: true
+  both:
+    params:
+      gap_requires_slow_players: true
+      restart_requires_player_rise: true
+selection:
+  development_sets: [ext_metrica_game_1, ext_metrica_game_2]
+  rule: 'fixed D-frame F1 on the four development clips; ties prefer the switch that changes fewer frames'
+  grid:
+    gap_slow_fraction: [0.4, 0.6, 0.8]
+    player_rise_window_s: [1.0, 2.0, 3.0]
+    player_rise_delta_m_s: [0.3, 0.5, 0.8]
+  selected:
+    gap_slow_fraction: 0.4
+    player_rise_window_s: 3.0
+    player_rise_delta_m_s: 0.3
