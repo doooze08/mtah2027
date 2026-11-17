@@ -4,10 +4,6 @@ import math
 
 import numpy as np
 
-from algorithms.dead_ball_aware.pace import (
-    PLAYER_PACE_THRESHOLD_M_S, player_pace, restart_player_rise,
-)
-
 
 def runs(mask):
     edges = np.flatnonzero(np.diff(np.r_[False, mask, False]))
@@ -51,8 +47,7 @@ def infer(observations, metadata, config, tags=None):
     ball = observations[['ball_x', 'ball_y']].to_numpy(dtype=float) * scale
     n = len(ball)
     if not n:
-        return [], {'restarts': [], 'confirmed_passes': [], 'visible_stoppages': [],
-                    'long_gaps': [], 'long_gap_checks': [], 'restart_rejections': []}
+        return [], {'restarts': [], 'confirmed_passes': [], 'visible_stoppages': [], 'long_gaps': []}
     slots = list(metadata['slot_teams'])
     teams = np.array([metadata['slot_teams'][s] for s in slots])
     players = np.stack([observations[[s + '_x', s + '_y']].to_numpy(dtype=float)
@@ -84,38 +79,12 @@ def infer(observations, metadata, config, tags=None):
                 if start:
                     evidence.setdefault(int(start), set()).add(str(teams[player]))
 
-    pace = None
-    gap_requires_slow = bool(config.get('gap_requires_slow_players', False))
-    restart_requires_rise = bool(config.get('restart_requires_player_rise', False))
-    if gap_requires_slow or restart_requires_rise:
-        pace = player_pace(observations, metadata)
-    gap_slow_fraction = float(config.get('gap_slow_fraction', 0.6))
-    gaps = []
-    gap_checks = []
     forced_dead = outside.copy()
+    gaps = []
     for start, stop in runs(~known):
         if (stop - start) / fps > config['gap_s']:
-            start, stop = int(start), int(stop)
-            gaps.append([start, stop])
-            check = {'start': start, 'stop': stop, 'n_frames': stop - start,
-                     'n_finite': 0, 'slow_fraction': None, 'judged_dead': True,
-                     'vetoed': False}
-            judged_dead = True
-            if gap_requires_slow:
-                frames = pace[start:stop]
-                finite = frames[np.isfinite(frames)]
-                check['n_finite'] = int(len(finite))
-                if len(finite):
-                    fraction = float(np.mean(finite < PLAYER_PACE_THRESHOLD_M_S))
-                    check['slow_fraction'] = fraction
-                    judged_dead = fraction >= gap_slow_fraction
-                    check['judged_dead'] = bool(judged_dead)
-                    check['vetoed'] = not judged_dead
-                # With no finite pace at all the frame is data-insufficient: keep the
-                # original long-gap D, exactly as the coordinate rule does.
-            if judged_dead:
-                forced_dead[start:stop] = True
-            gap_checks.append(check)
+            forced_dead[start:stop] = True
+            gaps.append([int(start), int(stop)])
 
     slow = speed <= config['slow_speed_m_s']
     slow_start = np.full(n, -1, dtype=int)
@@ -302,21 +271,6 @@ def infer(observations, metadata, config, tags=None):
                     'team_source': team_source, 'tag_start': tag_start,
                     'tag_end': tag_stop, 'evidence': kind})
 
-    restart_gate = restarts
-    restart_rejections = []
-    if restart_requires_rise:
-        window_s = float(config.get('player_rise_window_s', 2.0))
-        delta = float(config.get('player_rise_delta_m_s', 0.4))
-        restart_gate = {}
-        for frame, record in restarts.items():
-            confirmed_rise = restart_player_rise(
-                pace, record['launch'], fps, window_s, delta)
-            record['player_rise'] = bool(confirmed_rise)
-            if confirmed_rise:
-                restart_gate[frame] = record
-            else:
-                restart_rejections.append(record)
-
     passes = {}
     ordered = sorted(controls)
     for first, second in zip(ordered, ordered[1:]):
@@ -343,16 +297,14 @@ def infer(observations, metadata, config, tags=None):
         elif (state == 'D' and frame in passes
               and frame - max(dead_since, passes[frame]['source_start']) >= confirm):
             state = passes[frame]['team']
-        elif state == 'D' and frame in restart_gate:
-            state = restart_gate[frame]['team']
+        elif state == 'D' and frame in restarts:
+            state = restarts[frame]['team']
         elif state != 'D' and known[frame] and len(evidence.get(frame, ())) == 1:
             state = next(iter(evidence[frame]))
         labels.append(state)
     return labels, {'restarts': list(restarts.values()),
                     'confirmed_passes': list(passes.values()),
                     'visible_stoppages': visible_stoppages, 'long_gaps': gaps,
-                    'long_gap_checks': gap_checks,
-                    'restart_rejections': restart_rejections,
                     'tags_seen': len(relevant_tags), 'tags_used': len(tags_used),
                     'tags_overridden': len(tags_overridden), 'tag_team_conflicts': team_conflicts,
                     'tags_unmatched': len(relevant_tags) - len(tags_used | tags_overridden)}

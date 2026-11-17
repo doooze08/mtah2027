@@ -1,3 +1,6 @@
+# Historical experiment record only. PR #22 removed the player-pace
+# implementation and experiment scripts; this file documents the grid, frozen
+# parameters, and four arms. It is not read by the current algorithm.
 experiment_id: 20261116_dead_ball_player_pace
 algorithm: dead_ball_aware
 description: 'Player-pace veto and restart confirmation for dead-ball decisions'
