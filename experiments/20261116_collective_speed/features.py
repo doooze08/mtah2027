@@ -56,8 +56,9 @@ def frame_features(observations, min_players=MIN_PLAYERS):
         where=count > 0,
     )
     eligible = count >= min_players
-    f1 = pd.Series(f1_raw).rolling(WINDOW, min_periods=1).mean().to_numpy()
-    f2 = pd.Series(f2_raw).rolling(WINDOW, min_periods=1).mean().to_numpy()
+    # pandas 3's to_numpy() is read-only; copy before writing NaNs below.
+    f1 = pd.Series(f1_raw).rolling(WINDOW, min_periods=1).mean().to_numpy().copy()
+    f2 = pd.Series(f2_raw).rolling(WINDOW, min_periods=1).mean().to_numpy().copy()
     f1[~eligible] = np.nan
     f2[~eligible] = np.nan
     f3 = pd.Series(f1).diff(WINDOW).to_numpy()
@@ -180,7 +181,8 @@ def ball_speed(observations, pitch_length, pitch_width):
                         np.diff(ball[:, 1]) * pitch_width) * FPS
     speed[1:] = distance
     raw = speed.copy()
-    speed = pd.Series(speed).rolling(WINDOW, min_periods=1).mean().to_numpy()
+    # Same read-only issue as frame_features: copy before masking.
+    speed = pd.Series(speed).rolling(WINDOW, min_periods=1).mean().to_numpy().copy()
     speed[~known | ~np.isfinite(raw)] = np.nan
     return speed
 

@@ -169,6 +169,40 @@ def segment_q1(clips):
     return pd.DataFrame(rows)
 
 
+def segment_restart_info(game, clips):
+    """First raw event at/after each >5 s ball gap.
+
+    A live-majority gap whose first post-gap event is SET PIECE is suspicious: the
+    actual stoppage may be a vendor event outside the stoppage list (for example
+    BALL LOST OFFSIDE or HAND BALL), so the weak label missed it.  This flag is used
+    only for a sensitivity check, never to relabel the dataset.
+    """
+    events = metrica_events(game, clips)
+    by_clip = {}
+    for event in events:
+        by_clip.setdefault(event["clip"]["clip"], []).append(event)
+    for values in by_clip.values():
+        values.sort(key=lambda item: item["relative"])
+    rows = []
+    for clip in clips:
+        clip_events = by_clip.get(clip["clip"], [])
+        for index, (start, stop) in enumerate(ball_missing_runs(clip["observations"])):
+            after = [event for event in clip_events if event["relative"] >= stop]
+            first = after[0] if after else None
+            label = ""
+            if first is not None:
+                label = "{} {}".format(first["type"], first["subtype"]).strip()
+            rows.append({
+                "dataset": clip["dataset"],
+                "clip": clip["clip"],
+                "segment_index": index,
+                "first_post_gap_event": label,
+                "first_post_gap_is_set_piece": bool(
+                    first is not None and first["type"] == "SET PIECE"),
+            })
+    return pd.DataFrame(rows)
+
+
 def segment_summary(segments):
     rows = []
     if segments.empty:
@@ -185,6 +219,14 @@ def segment_summary(segments):
                 row[name + "_q1"] = stats["q1"]
                 row[name + "_q3"] = stats["q3"]
             row["auc_live_gt_dead"] = auc_live_gt_dead(live, dead)
+            if "first_post_gap_is_set_piece" in group.columns:
+                restart = group["first_post_gap_is_set_piece"].eq(True).to_numpy()
+                live_mask = group["majority"].eq("live").to_numpy()
+                live_keep = group.loc[live_mask & ~restart, feature].to_numpy()
+                row["n_live_set_piece_restart"] = int((live_mask & restart).sum())
+                row["n_live_excluding_set_piece_restart"] = int(len(live_keep))
+                row["auc_live_gt_dead_excluding_set_piece_restart"] = (
+                    auc_live_gt_dead(live_keep, dead))
             rows.append(row)
     return pd.DataFrame(rows)
 
@@ -775,13 +817,23 @@ def main():
         os.path.join(OUTPUT_DIR, "q1_frame_game_stats.csv"), index=False)
 
     segments = []
+    restart_tables = []
     for game, clips in metrica.items():
         table = segment_q1(clips)
+        restart = segment_restart_info(game, clips)
+        restart_tables.append(restart)
         if not table.empty:
+            table = table.merge(
+                restart[["dataset", "clip", "segment_index",
+                         "first_post_gap_event", "first_post_gap_is_set_piece"]],
+                on=["dataset", "clip", "segment_index"], how="left", validate="one_to_one")
             table["source"] = "Metrica"
             segments.append(table)
     metric_segments = pd.concat(segments, ignore_index=True) if segments else pd.DataFrame()
+    segment_restart = (
+        pd.concat(restart_tables, ignore_index=True) if restart_tables else pd.DataFrame())
     metric_segments.to_csv(os.path.join(OUTPUT_DIR, "q1_segments.csv"), index=False)
+    segment_restart.to_csv(os.path.join(OUTPUT_DIR, "q1_segment_restart.csv"), index=False)
     segment_stats = segment_summary(metric_segments)
     segment_stats.to_csv(os.path.join(OUTPUT_DIR, "q1_segment_stats.csv"), index=False)
 
@@ -835,6 +887,10 @@ def main():
     summary = {
         "frame_stats_rows": len(frame_stats),
         "segment_stats_rows": len(segment_stats),
+        "segment_restart_rows": len(segment_restart),
+        "segment_restart_set_piece": (
+            segment_restart.groupby("dataset")["first_post_gap_is_set_piece"]
+            .sum().astype(int).to_dict() if not segment_restart.empty else {}),
         "skillcorner_coverage": coverage.to_dict(orient="records"),
         "skillcorner_segments": sc_segment_summary,
         "holdout": holdout,
