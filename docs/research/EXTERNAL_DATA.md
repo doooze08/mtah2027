@@ -439,6 +439,15 @@ kloppy 自带的公开测试夹具（game 10517，2022-12-18，阿根廷 vs 法�
 
 ## 10. 下载、校验与复现
 
+**最短流程：下载 → 放置 → 校验 → 转换**
+
+1. **下载**：按 §10.2 的 `curl` 命令取 Metrica、SkillCorner 或 PFF 测试夹具。
+2. **放置**：保持 `data/external/<source>/<match>/` 的目录结构；该目录被 `.gitignore` 排除，不进 Git。
+3. **校验**：在仓库根目录运行 `shasum -a 256 -c data/external/SHA256SUMS`；18 个文件应全部为 `OK`。
+4. **转换**：`.venv/bin/python -m external.convert --source all --data-dir "$PWD/data"`，输出到 `outputs/simulation_sets/ext_<source>_<match>/`；重复转换同一目录时加 `--force`。
+
+下载和校验的细节见 §10.2–10.4，转换后的数据集说明见 [`experiments/20261116_external_sets/NOTES.md`](../../experiments/20261116_external_sets/NOTES.md)。
+
 ### 10.1 本地目录
 
 ```text
