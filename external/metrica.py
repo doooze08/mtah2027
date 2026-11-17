@@ -18,10 +18,10 @@ dead/alive):
   as advantage and the stoppage does not produce D. ``RECOVERY`` is deliberately not a
   live event: dead-ball pickups are recorded as RECOVERY too, so it must not cancel a
   stoppage (it still switches H/A when it occurs in live play). A restart is a
-  ``SET PIECE``, or a ``PASS`` whose subtype contains ``GOAL KICK`` (the vendor encodes
-  goal kicks and intercepted goal kicks as passes). A goal (``SHOT`` subtype contains
-  ``GOAL``) keeps the original rule: from the frame after the shot ends until the next
-  ``KICK OFF``.
+  ``SET PIECE``, or any event whose subtype contains ``GOAL KICK`` (the vendor encodes
+  goal kicks and intercepted goal kicks as ``PASS`` or ``BALL LOST``). A goal
+  (``SHOT`` subtype contains ``GOAL``) keeps the original rule: from the frame after
+  the shot ends until the next ``KICK OFF``.
 * ``X`` only from the start of a half to the first kickoff and after the last event.
   There is no fixed foul window: a foul 30 s before the free kick is still D when no
   live event separates them.
@@ -257,14 +257,14 @@ def _is_challenge_fault(event):
     return event.event_type == "CHALLENGE" and "FAULT" in event.subtype
 
 
-def _is_goal_kick_pass(event):
-    # The vendor encodes goal kicks (including intercepted goal kicks) as PASS
-    # subtypes containing GOAL KICK rather than SET PIECE.
-    return event.event_type == "PASS" and "GOAL KICK" in event.subtype
+def _is_goal_kick(event):
+    # The vendor encodes goal kicks (including intercepted goal kicks) as SET PIECE,
+    # PASS, or BALL LOST events whose subtype contains GOAL KICK.
+    return "GOAL KICK" in event.subtype
 
 
 def _is_restart(event):
-    return event.event_type == "SET PIECE" or _is_goal_kick_pass(event)
+    return event.event_type == "SET PIECE" or _is_goal_kick(event)
 
 
 def _is_stoppage_start(event):
@@ -276,7 +276,7 @@ def _is_stoppage_start(event):
 
 def _is_live_event(event):
     """Events that mean play continued and therefore cancel the preceding stoppage."""
-    return ((event.event_type in LIVE_TYPES and not _is_goal_kick_pass(event))
+    return ((event.event_type in LIVE_TYPES and not _is_goal_kick(event))
             or (event.event_type == "SHOT" and not _is_shot_out(event)))
 
 

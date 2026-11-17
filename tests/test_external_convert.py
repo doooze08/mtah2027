@@ -233,6 +233,19 @@ class MetricaLabelTest(unittest.TestCase):
         self.assertEqual(labels[20], "A")               # goal kick is the restart
         self.assertEqual(labels[30], "A")
 
+    def test_ball_lost_goal_kick_is_a_restart_not_live(self):
+        events = [
+            Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
+            Event(1, "PASS", "", 1, 1, "H"),
+            Event(2, "BALL OUT", "", 10, 12, "H"),
+            Event(3, "RECOVERY", "", 15, 15, "A"),
+            Event(4, "BALL LOST", "GOAL KICK-INTERCEPTION", 20, 20, "A"),
+            Event(5, "PASS", "", 20, 20, "A"),
+        ]
+        labels = self._labels(30, events)
+        self.assertEqual(labels[10:20], ["D"] * 10)     # BALL OUT to goal kick
+        self.assertEqual(labels[20], "A")               # goal kick is the restart
+
     def test_ball_out_then_recovery_is_still_dead(self):
         events = [
             Event(0, "SET PIECE", "KICK OFF", 0, 0, "H"),
