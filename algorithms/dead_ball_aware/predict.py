@@ -47,7 +47,8 @@ def infer(observations, metadata, config, tags=None):
     ball = observations[['ball_x', 'ball_y']].to_numpy(dtype=float) * scale
     n = len(ball)
     if not n:
-        return [], {'restarts': [], 'confirmed_passes': [], 'visible_stoppages': [], 'long_gaps': []}
+        return [], {'restarts': [], 'confirmed_passes': [], 'visible_stoppages': [],
+                    'long_gaps': [], 'moving_reappearances': []}
     slots = list(metadata['slot_teams'])
     teams = np.array([metadata['slot_teams'][s] for s in slots])
     players = np.stack([observations[[s + '_x', s + '_y']].to_numpy(dtype=float)
@@ -271,6 +272,54 @@ def infer(observations, metadata, config, tags=None):
                     'team_source': team_source, 'tag_start': tag_start,
                     'tag_end': tag_stop, 'evidence': kind})
 
+    moving_reappearances = []
+    if config.get('end_gap_on_moving_ball', False):
+        for _, stop in gaps:
+            if stop <= 0 or stop >= n or stop in restarts:
+                continue
+            end = stop
+            if outside[stop]:
+                # A throw-in reappears outside the pitch; its restart is the entry frame.
+                while (end < min(n, stop + travel) and known[end] and outside[end]):
+                    end += 1
+                if end >= min(n, stop + travel) or not known[end]:
+                    continue
+            first = min((c for c in controls if c[0] >= end),
+                        key=lambda c: c[0], default=None)
+            if first is None or first[0] - end > travel:
+                continue
+            first_speed = next((frame for frame in range(end, min(n, end + travel + 1))
+                                if np.isfinite(speed[frame])), None)
+            if first_speed is None or speed[first_speed] <= config['slow_speed_m_s']:
+                continue
+            # The moving ball must stay visible and in play until the first control; an
+            # observed release, another gap or an exit keeps the original behavior.
+            if (not known[end:first[0] + 1].all()
+                    or outside[end:first[0] + 1].any()
+                    or forced_dead[end:first[0] + 1].any()
+                    or any(stop <= frame <= first[0] for frame in restarts)):
+                continue
+            tag_team = None
+            if trusted:
+                for tag in relevant_tags:
+                    if not tag.get('team'):
+                        continue
+                    tag_start = max(0, min(n - 1, int(tag['start_frame'])))
+                    tag_stop = min(n, int(tag['end_frame']))
+                    if (tag_start - margin <= end < tag_stop + margin
+                            or (tag_start <= first[0] and tag_stop >= end)):
+                        tag_team = str(tag['team'])
+                        break
+            team = tag_team or str(teams[first[2]])
+            restarts[end] = {
+                'frame': int(end), 'launch': int(stop), 'team': team,
+                'slot': None, 'coordinate_team': str(teams[first[2]]),
+                'team_source': 'tag' if tag_team else 'first_control',
+                'tag_supported': bool(tag_team), 'tag_used': False,
+                'tag_overridden': False, 'after_gap': True, 'revived': True,
+                'moving_reappearance': True, 'control_start': int(first[0])}
+            moving_reappearances.append(restarts[end])
+
     passes = {}
     ordered = sorted(controls)
     for first, second in zip(ordered, ordered[1:]):
@@ -305,6 +354,7 @@ def infer(observations, metadata, config, tags=None):
     return labels, {'restarts': list(restarts.values()),
                     'confirmed_passes': list(passes.values()),
                     'visible_stoppages': visible_stoppages, 'long_gaps': gaps,
+                    'moving_reappearances': moving_reappearances,
                     'tags_seen': len(relevant_tags), 'tags_used': len(tags_used),
                     'tags_overridden': len(tags_overridden), 'tag_team_conflicts': team_conflicts,
                     'tags_unmatched': len(relevant_tags) - len(tags_used | tags_overridden)}
